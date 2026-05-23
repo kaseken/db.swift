@@ -9,7 +9,6 @@ jobs:
     runs-on: macos-latest
     permissions:
       contents: read
-      pull-requests: write
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
       - name: Install Swift via swiftly
@@ -30,24 +29,16 @@ jobs:
         run: |
           BIN_PATH=$(swift build --show-bin-path)
           LLVM_COV="$(swift -print-target-info | grep runtimeResourcePath | sed 's|.*"\(.*\)/lib/swift.*"|\1|')/bin/llvm-cov"
-          "${LLVM_COV}" report \
-            "${BIN_PATH}/db_tutorial_swiftPackageTests.xctest/Contents/MacOS/db_tutorial_swiftPackageTests" \
-            --instr-profile "${BIN_PATH}/codecov/default.profdata" \
+          TEST_BIN="${BIN_PATH}/db_tutorial_swiftPackageTests.xctest/Contents/MacOS/db_tutorial_swiftPackageTests"
+          PROFDATA="${BIN_PATH}/codecov/default.profdata"
+          "${LLVM_COV}" export \
+            "${TEST_BIN}" \
+            --instr-profile "${PROFDATA}" \
+            --format lcov \
             --ignore-filename-regex='\.build|Tests' \
-            | tee coverage.txt
-          printf '## Coverage\n```\n%s\n```\n' "$(cat coverage.txt)" >> "$GITHUB_STEP_SUMMARY"
-      - name: Post coverage comment
-        if: github.event_name == 'pull_request'
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          BODY=$(printf '## Coverage\n```\n%s\n```' "$(cat coverage.txt)")
-          COMMENT_ID=$(gh api "repos/${{ github.repository }}/issues/${{ github.event.pull_request.number }}/comments" \
-            --jq '.[] | select(.user.login == "github-actions[bot]" and (.body | startswith("## Coverage"))) | .id' \
-            | tail -1)
-          if [ -n "${COMMENT_ID}" ]; then
-            gh api "repos/${{ github.repository }}/issues/comments/${COMMENT_ID}" \
-              --method PATCH --field body="${BODY}"
-          else
-            gh pr comment "${{ github.event.pull_request.number }}" --body "${BODY}"
-          fi
+            > coverage.lcov
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@e79a6962e0d4c0c17b229090214935d2e33f8354 # v6.0.1
+        with:
+          files: coverage.lcov
+          token: ${{ secrets.CODECOV_TOKEN }}
