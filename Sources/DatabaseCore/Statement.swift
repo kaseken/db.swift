@@ -1,19 +1,32 @@
-public enum Statement: Equatable {
-    case insert // Part 3で case insert(Row) に変える
+public enum PrepareError: Error {
+    case syntaxError
+    case unrecognized
+}
+
+public enum Statement {
+    case insert(Row)
     case select
 
-    public init?(_ input: String) {
-        if input.hasPrefix("insert") { self = .insert; return }
-        if input == "select" { self = .select; return }
-        return nil
+    public static func prepare(_ input: String) -> Result<Statement, PrepareError> {
+        if input.hasPrefix("insert") {
+            let parts = input.split(separator: " ", maxSplits: 3, omittingEmptySubsequences: true)
+            guard parts.count == 4, let id = UInt32(parts[1]) else {
+                return .failure(.syntaxError)
+            }
+            let row = Row(id: id, username: String(parts[2]), email: String(parts[3]))
+            return .success(.insert(row))
+        }
+        if input == "select" { return .success(.select) }
+        return .failure(.unrecognized)
     }
 
-    public func execute() {
+    public func execute(on table: Table) -> ExecuteResult {
         switch self {
-        case .insert:
-            print("This is where we would do an insert.")
+        case let .insert(row):
+            return table.insert(row: row)
         case .select:
-            print("This is where we would do a select.")
+            table.select().forEach { $0.printRow() }
+            return .success
         }
     }
 }

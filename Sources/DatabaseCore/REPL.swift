@@ -26,11 +26,11 @@ public struct REPL {
     public init() {}
 
     private func printPrompt() {
-        // Use write() to avoid newline that print() appends
         FileHandle.standardOutput.write(Data("db > ".utf8))
     }
 
     public func run() {
+        let table = Table()
         while true {
             printPrompt()
             guard let line = readLine() else { break }
@@ -40,9 +40,15 @@ public struct REPL {
                 continue
             }
 
-            if let statement = Statement(line) {
-                statement.execute()
-            } else {
+            switch Statement.prepare(line) {
+            case let .success(statement):
+                switch statement.execute(on: table) {
+                case .success: break
+                case .tableFull: print("Error: Table full.")
+                }
+            case .failure(.syntaxError):
+                print("Syntax error. Could not parse statement.")
+            case .failure(.unrecognized):
                 print("Unrecognized keyword at start of '\(line)'.")
             }
         }
