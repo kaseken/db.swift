@@ -17,8 +17,8 @@ public class Table {
     public init(filename: String) throws {
         let pager = try Pager(filename: filename)
         self.pager = pager
-        let numFullPages = pager.fileLength / Table.pageSize
-        let remainingBytes = pager.fileLength % Table.pageSize
+        let numFullPages = pager.diskFileLength / Table.pageSize
+        let remainingBytes = pager.diskFileLength % Table.pageSize
         numRows = UInt32(numFullPages * Table.rowsPerPage + remainingBytes / Row.size)
     }
 
@@ -46,7 +46,9 @@ public class Table {
 
     @discardableResult
     public func insert(row: Row) -> ExecuteResult {
-        guard numRows < Table.maxRows else { return .tableFull }
+        guard numRows < Table.maxRows else {
+            return .tableFull
+        }
         let (pageIndex, byteOffset) = rowSlot(numRows)
         var page = pager.getPage(pageIndex)
         let serialized = row.serialize()

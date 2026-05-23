@@ -9,7 +9,9 @@ class Pager {
     static let pageSize = 4096
 
     private let fileHandle: FileHandle
-    let fileLength: Int
+    /// The file size at the time this Pager was opened. Used only during cache-miss
+    /// to determine whether a page already exists on disk or needs to be freshly allocated.
+    let diskFileLength: Int
     private var pages: [Data?]
 
     init(filename: String) throws {
@@ -21,26 +23,32 @@ class Pager {
             throw PagerError.cannotOpenFile(filename)
         }
         fileHandle = fh
-        fileLength = Int(fh.seekToEndOfFile())
+        diskFileLength = Int(fh.seekToEndOfFile())
         pages = Array(repeating: nil, count: Pager.maxPages)
     }
 
     func getPage(_ pageNum: Int) -> Data {
-        if pages[pageNum] == nil {
-            let pageOffset = pageNum * Pager.pageSize
-            if pageOffset < fileLength {
-                fileHandle.seek(toFileOffset: UInt64(pageOffset))
-                let bytesToRead = min(Pager.pageSize, fileLength - pageOffset)
-                var page = fileHandle.readData(ofLength: bytesToRead)
-                if page.count < Pager.pageSize {
-                    page.append(Data(count: Pager.pageSize - page.count))
-                }
-                pages[pageNum] = page
-            } else {
-                pages[pageNum] = Data(count: Pager.pageSize)
-            }
+        if let cached = pages[pageNum] {
+            return cached
         }
-        return pages[pageNum]!
+        // Pages are stored sequentially in the file: page 0 at offset 0, page 1 at offset 4096, etc.
+        let pageOffset = pageNum * Pager.pageSize
+        guard pageOffset < diskFileLength else {
+            // Page is beyond the end of the file — allocate a blank page
+            let page = Data(count: Pager.pageSize)
+            pages[pageNum] = page
+            return page
+        }
+        fileHandle.seek(toFileOffset: UInt64(pageOffset))
+        // For full pages this equals pageSize; for the last partial page it is smaller
+        let bytesToRead = min(Pager.pageSize, diskFileLength - pageOffset)
+        var page = fileHandle.readData(ofLength: bytesToRead)
+        // Pad the last partial page with zeros so every cached page is always pageSize bytes
+        if page.count < Pager.pageSize {
+            page.append(Data(count: Pager.pageSize - page.count))
+        }
+        pages[pageNum] = page
+        return page
     }
 
     func setPage(_ pageNum: Int, data: Data) {
@@ -48,9 +56,11 @@ class Pager {
     }
 
     func flush(pageNum: Int, numBytes: Int) {
-        guard pages[pageNum] != nil else { return }
+        guard let page = pages[pageNum] else {
+            return
+        }
         fileHandle.seek(toFileOffset: UInt64(pageNum * Pager.pageSize))
-        fileHandle.write(pages[pageNum]!.prefix(numBytes))
+        fileHandle.write(page.prefix(numBytes))
     }
 
     func close() {
