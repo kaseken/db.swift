@@ -1,14 +1,14 @@
 import Foundation
 
 public struct Row: Equatable {
-    static let idSize = 4
-    static let usernameSize = 32
-    static let emailSize = 255
+    private static let idSize = 4
+    private static let usernameSize = 32
+    private static let emailSize = 255
     static let size = idSize + usernameSize + emailSize // 291
 
-    static let idOffset = 0
-    static let usernameOffset = idSize
-    static let emailOffset = idSize + usernameSize
+    private static let idOffset = 0
+    private static let usernameOffset = idSize
+    private static let emailOffset = idSize + usernameSize
 
     public let id: UInt32
     public let username: String
