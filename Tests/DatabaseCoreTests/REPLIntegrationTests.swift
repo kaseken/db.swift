@@ -11,9 +11,16 @@ struct REPLIntegrationTests {
         return packageRoot.appendingPathComponent(".build/debug/db")
     }()
 
-    private func runScript(_ commands: [String]) throws -> [String] {
+    private func makeTempDBPath() -> String {
+        FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString + ".db")
+            .path
+    }
+
+    private func runScript(_ commands: [String], dbFile: String) throws -> [String] {
         let process = Process()
         process.executableURL = Self.binaryURL
+        process.arguments = [dbFile]
 
         let stdinPipe = Pipe()
         let stdoutPipe = Pipe()
@@ -38,11 +45,13 @@ struct REPLIntegrationTests {
     }
 
     @Test func `inserts and retrieves a row`() throws {
+        let db = makeTempDBPath()
+        defer { try? FileManager.default.removeItem(atPath: db) }
         let result = try runScript([
             "insert 1 user1 person1@example.com",
             "select",
             ".exit",
-        ])
+        ], dbFile: db)
         #expect(result == [
             "db > Executed.",
             "db > (1, user1, person1@example.com)",
@@ -52,13 +61,15 @@ struct REPLIntegrationTests {
     }
 
     @Test func `allows inserting strings that are the maximum length`() throws {
+        let db = makeTempDBPath()
+        defer { try? FileManager.default.removeItem(atPath: db) }
         let longUsername = String(repeating: "a", count: 32)
         let longEmail = String(repeating: "a", count: 255)
         let result = try runScript([
             "insert 1 \(longUsername) \(longEmail)",
             "select",
             ".exit",
-        ])
+        ], dbFile: db)
         #expect(result == [
             "db > Executed.",
             "db > (1, \(longUsername), \(longEmail))",
@@ -68,12 +79,14 @@ struct REPLIntegrationTests {
     }
 
     @Test func `prints an error message if strings are too long`() throws {
+        let db = makeTempDBPath()
+        defer { try? FileManager.default.removeItem(atPath: db) }
         let longUsername = String(repeating: "a", count: 33)
         let result = try runScript([
             "insert 1 \(longUsername) foo@bar.com",
             "insert 2 foo foo@bar.com",
             ".exit",
-        ])
+        ], dbFile: db)
         #expect(result == [
             "db > String is too long.",
             "db > Executed.",
@@ -82,11 +95,13 @@ struct REPLIntegrationTests {
     }
 
     @Test func `prints an error message if id is negative`() throws {
+        let db = makeTempDBPath()
+        defer { try? FileManager.default.removeItem(atPath: db) }
         let result = try runScript([
             "insert -1 foo foo@example.com",
             "insert 1 foo foo@example.com",
             ".exit",
-        ])
+        ], dbFile: db)
         #expect(result == [
             "db > ID must be positive.",
             "db > Executed.",
@@ -95,7 +110,9 @@ struct REPLIntegrationTests {
     }
 
     @Test func `prints error message for unrecognized meta command`() throws {
-        let result = try runScript([".unknown", ".exit"])
+        let db = makeTempDBPath()
+        defer { try? FileManager.default.removeItem(atPath: db) }
+        let result = try runScript([".unknown", ".exit"], dbFile: db)
         #expect(result == [
             "db > Unrecognized command '.unknown'.",
             "db > ",
@@ -103,7 +120,9 @@ struct REPLIntegrationTests {
     }
 
     @Test func `prints error message for syntax error`() throws {
-        let result = try runScript(["insert foo", ".exit"])
+        let db = makeTempDBPath()
+        defer { try? FileManager.default.removeItem(atPath: db) }
+        let result = try runScript(["insert foo", ".exit"], dbFile: db)
         #expect(result == [
             "db > Syntax error. Could not parse statement.",
             "db > ",
@@ -111,7 +130,9 @@ struct REPLIntegrationTests {
     }
 
     @Test func `prints error message for unrecognized keyword`() throws {
-        let result = try runScript(["unknown", ".exit"])
+        let db = makeTempDBPath()
+        defer { try? FileManager.default.removeItem(atPath: db) }
+        let result = try runScript(["unknown", ".exit"], dbFile: db)
         #expect(result == [
             "db > Unrecognized keyword at start of 'unknown'.",
             "db > ",
@@ -119,15 +140,40 @@ struct REPLIntegrationTests {
     }
 
     @Test func `exits gracefully on EOF`() throws {
-        let result = try runScript([])
+        let db = makeTempDBPath()
+        defer { try? FileManager.default.removeItem(atPath: db) }
+        let result = try runScript([], dbFile: db)
         #expect(result == ["db > "])
     }
 
     @Test func `prints error message when table is full`() throws {
+        let db = makeTempDBPath()
+        defer { try? FileManager.default.removeItem(atPath: db) }
         let inserts = (1 ... 1401).map { "insert \($0) user\($0) person\($0)@example.com" }
-        let result = try runScript(inserts + [".exit"])
+        let result = try runScript(inserts + [".exit"], dbFile: db)
         #expect(result.suffix(2) == [
             "db > Error: Table full.",
+            "db > ",
+        ])
+    }
+
+    @Test func `persists data across sessions`() throws {
+        let db = makeTempDBPath()
+        defer { try? FileManager.default.removeItem(atPath: db) }
+
+        // First session: insert rows
+        _ = try runScript([
+            "insert 1 user1 person1@example.com",
+            "insert 2 user2 person2@example.com",
+            ".exit",
+        ], dbFile: db)
+
+        // Second session: data should still be there
+        let result = try runScript(["select", ".exit"], dbFile: db)
+        #expect(result == [
+            "db > (1, user1, person1@example.com)",
+            "(2, user2, person2@example.com)",
+            "Executed.",
             "db > ",
         ])
     }

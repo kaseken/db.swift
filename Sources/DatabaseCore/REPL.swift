@@ -12,12 +12,14 @@ enum MetaCommand: Equatable {
         }
     }
 
-    func execute() {
+    /// Returns true if the REPL should exit.
+    func execute() -> Bool {
         switch self {
         case .exit:
-            Foundation.exit(0)
+            return true
         case let .unrecognized(cmd):
             print("Unrecognized command '\(cmd)'.")
+            return false
         }
     }
 }
@@ -29,14 +31,15 @@ public struct REPL {
         print("db > ", terminator: "")
     }
 
-    public func run() {
-        let table = Table()
+    public func run(filename: String) throws {
+        let table = try Table(filename: filename)
+        defer { table.close() }
         while true {
             printPrompt()
             guard let line = readLine() else { break }
 
             if let cmd = MetaCommand(line) {
-                cmd.execute()
+                if cmd.execute() { break }
                 continue
             }
 
