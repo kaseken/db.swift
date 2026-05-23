@@ -37,9 +37,10 @@ public struct Row: Equatable {
         let idBytes = data[Row.idOffset ..< Row.idOffset + Row.idSize]
         let id = idBytes.withUnsafeBytes { $0.load(as: UInt32.self).littleEndian }
         let usernameData = data[Row.usernameOffset ..< Row.usernameOffset + Row.usernameSize]
-        let username = String(bytes: usernameData.prefix { $0 != 0 }, encoding: .utf8) ?? ""
+        // TODO: Consider proper error handling once persistence is introduced in Part 5
+        let username = String(bytes: usernameData.prefix { $0 != 0 }, encoding: .utf8)!
         let emailData = data[Row.emailOffset ..< Row.emailOffset + Row.emailSize]
-        let email = String(bytes: emailData.prefix { $0 != 0 }, encoding: .utf8) ?? ""
+        let email = String(bytes: emailData.prefix { $0 != 0 }, encoding: .utf8)!
         return Row(id: id, username: username, email: email)
     }
 

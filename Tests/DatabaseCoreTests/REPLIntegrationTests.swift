@@ -88,6 +88,30 @@ struct REPLIntegrationTests {
         ])
     }
 
+    @Test func `prints error message for unrecognized meta command`() throws {
+        let result = try runScript([".unknown"])
+        #expect(result == [
+            "db > Unrecognized command '.unknown'.",
+            "db > ",
+        ])
+    }
+
+    @Test func `prints error message for syntax error`() throws {
+        let result = try runScript(["insert foo"])
+        #expect(result == [
+            "db > Syntax error. Could not parse statement.",
+            "db > ",
+        ])
+    }
+
+    @Test func `prints error message for unrecognized keyword`() throws {
+        let result = try runScript(["unknown"])
+        #expect(result == [
+            "db > Unrecognized keyword at start of 'unknown'.",
+            "db > ",
+        ])
+    }
+
     @Test func `prints error message when table is full`() throws {
         let inserts = (1 ... 1401).map { "insert \($0) user\($0) person\($0)@example.com" }
         let result = try runScript(inserts)
