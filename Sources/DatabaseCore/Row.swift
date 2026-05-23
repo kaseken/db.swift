@@ -26,9 +26,9 @@ public struct Row: Equatable {
         withUnsafeBytes(of: &idVal) {
             data.replaceSubrange(Row.idOffset ..< Row.idOffset + Row.idSize, with: $0)
         }
-        let usernameBytes = Array(username.utf8.prefix(Row.usernameSize - 1))
+        let usernameBytes = Array(username.utf8.prefix(Row.usernameSize))
         data.replaceSubrange(Row.usernameOffset ..< Row.usernameOffset + usernameBytes.count, with: usernameBytes)
-        let emailBytes = Array(email.utf8.prefix(Row.emailSize - 1))
+        let emailBytes = Array(email.utf8.prefix(Row.emailSize))
         data.replaceSubrange(Row.emailOffset ..< Row.emailOffset + emailBytes.count, with: emailBytes)
         return data
     }

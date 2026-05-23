@@ -48,6 +48,10 @@ public struct REPL {
                 }
             case .failure(.syntaxError):
                 print("Syntax error. Could not parse statement.")
+            case .failure(.negativeId):
+                print("ID must be positive.")
+            case .failure(.stringTooLong):
+                print("String is too long.")
             case .failure(.unrecognized):
                 print("Unrecognized keyword at start of '\(line)'.")
             }

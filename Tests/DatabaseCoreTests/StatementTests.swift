@@ -52,4 +52,43 @@ struct StatementTests {
         }
         #expect(err == .unrecognized)
     }
+
+    @Test func `insert with negative id returns negativeId`() {
+        guard case let .failure(err) = Statement.prepare("insert -1 foo foo@example.com") else {
+            Issue.record("Expected .failure")
+            return
+        }
+        #expect(err == .negativeId)
+    }
+
+    @Test func `insert with max length username and email succeeds`() {
+        let username = String(repeating: "a", count: 32)
+        let email = String(repeating: "b", count: 255)
+        guard case let .success(stmt) = Statement.prepare("insert 1 \(username) \(email)"),
+              case let .insert(row) = stmt
+        else {
+            Issue.record("Expected .success(.insert(...))")
+            return
+        }
+        #expect(row.username == username)
+        #expect(row.email == email)
+    }
+
+    @Test func `insert with username too long returns stringTooLong`() {
+        let username = String(repeating: "a", count: 33)
+        guard case let .failure(err) = Statement.prepare("insert 1 \(username) foo@example.com") else {
+            Issue.record("Expected .failure")
+            return
+        }
+        #expect(err == .stringTooLong)
+    }
+
+    @Test func `insert with email too long returns stringTooLong`() {
+        let email = String(repeating: "b", count: 256)
+        guard case let .failure(err) = Statement.prepare("insert 1 foo \(email)") else {
+            Issue.record("Expected .failure")
+            return
+        }
+        #expect(err == .stringTooLong)
+    }
 }
