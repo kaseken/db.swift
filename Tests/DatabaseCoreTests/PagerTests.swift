@@ -55,6 +55,15 @@ struct PagerTests {
         #expect(pager2.getPage(0)[0] == 0x42)
     }
 
+    @Test func `flush on uncached page does not write to file`() throws {
+        let path = makeTempPath()
+        defer { try? FileManager.default.removeItem(atPath: path) }
+        let pager = try Pager(filename: path)
+        defer { pager.close() }
+        pager.flush(pageNum: 0, numBytes: Pager.pageSize)
+        #expect(pager.diskFileLength == 0)
+    }
+
     @Test func `throws cannotOpenFile when file is not readable`() throws {
         let path = FileManager.default.temporaryDirectory
             .appendingPathComponent(UUID().uuidString + ".db")
