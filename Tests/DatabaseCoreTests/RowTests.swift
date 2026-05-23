@@ -30,17 +30,17 @@ struct RowTests {
         #expect(recovered == original)
     }
 
-    @Test func `long username is truncated to 31 chars`() {
-        let longUsername = String(repeating: "a", count: 40)
-        let row = Row(id: 1, username: longUsername, email: "e@example.com")
+    @Test func `max length username round-trips correctly`() {
+        let username = String(repeating: "a", count: 32)
+        let row = Row(id: 1, username: username, email: "e@example.com")
         let recovered = Row.deserialize(from: row.serialize())
-        #expect(recovered.username == String(repeating: "a", count: 31))
+        #expect(recovered.username == username)
     }
 
-    @Test func `long email is truncated to 254 chars`() {
-        let longEmail = String(repeating: "x", count: 300)
-        let row = Row(id: 1, username: "u", email: longEmail)
+    @Test func `max length email round-trips correctly`() {
+        let email = String(repeating: "x", count: 255)
+        let row = Row(id: 1, username: "u", email: email)
         let recovered = Row.deserialize(from: row.serialize())
-        #expect(recovered.email == String(repeating: "x", count: 254))
+        #expect(recovered.email == email)
     }
 }

@@ -7,6 +7,8 @@ jobs:
   test:
     name: Swift Test
     runs-on: macos-latest
+    permissions:
+      contents: read
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
       - name: Install Swift via swiftly
@@ -19,5 +21,24 @@ jobs:
           ~/.swiftly/bin/swiftly install 6.3.2 --use
       - name: Swift version
         run: swift --version
+      - name: Build
+        run: swift build
       - name: Run tests
-        run: swift test
+        run: swift test --enable-code-coverage
+      - name: Generate coverage report
+        run: |
+          BIN_PATH=$(swift build --show-bin-path)
+          LLVM_COV="$(swift -print-target-info | grep runtimeResourcePath | sed 's|.*"\(.*\)/lib/swift.*"|\1|')/bin/llvm-cov"
+          TEST_BIN="${BIN_PATH}/db_tutorial_swiftPackageTests.xctest/Contents/MacOS/db_tutorial_swiftPackageTests"
+          PROFDATA="${BIN_PATH}/codecov/default.profdata"
+          "${LLVM_COV}" export \
+            "${TEST_BIN}" \
+            --instr-profile "${PROFDATA}" \
+            --format lcov \
+            --ignore-filename-regex='\.build|Tests' \
+            > coverage.lcov
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@e79a6962e0d4c0c17b229090214935d2e33f8354 # v6.0.1
+        with:
+          files: coverage.lcov
+          token: ${{ secrets.CODECOV_TOKEN }}
