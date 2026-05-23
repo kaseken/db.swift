@@ -10,7 +10,7 @@ jobs:
     env:
       SWIFTFORMAT_VERSION: "0.61.1"
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
       - name: Install SwiftFormat
         env:
           SWIFTFORMAT_SHA256: "7bc8706e3fd51963f1f29eb99098ebdf482f3497fa527c68e6cf75cbee29c77a"
