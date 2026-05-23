@@ -6,34 +6,52 @@ public enum ExecuteResult {
 }
 
 public class Table {
-    // Same size as OS virtual memory pages to maximize I/O efficiency
-    static let pageSize = 4096
-    static let maxPages = 100
+    static let pageSize = Pager.pageSize
+    static let maxPages = Pager.maxPages
     static let rowsPerPage = pageSize / Row.size // 14
     static let maxRows = rowsPerPage * maxPages // 1400
 
-    private(set) var numRows: UInt32 = 0
-    /// Lazy allocation: pages are allocated only on first access
-    private var pages: [Data?] = Array(repeating: nil, count: Table.maxPages)
+    private(set) var numRows: UInt32
+    private let pager: Pager
 
-    public init() {}
+    public init(filename: String) throws {
+        let pager = try Pager(filename: filename)
+        self.pager = pager
+        let numFullPages = pager.fileLength / Table.pageSize
+        let remainingBytes = pager.fileLength % Table.pageSize
+        numRows = UInt32(numFullPages * Table.rowsPerPage + remainingBytes / Row.size)
+    }
 
-    /// Returns the page index and byte offset within that page for a given row number
+    public func close() {
+        let numFullPages = Int(numRows) / Table.rowsPerPage
+        let numAdditionalRows = Int(numRows) % Table.rowsPerPage
+        let pagesToFlush = numFullPages + (numAdditionalRows > 0 ? 1 : 0)
+
+        for pageNum in 0 ..< pagesToFlush {
+            let numBytes: Int = if pageNum == numFullPages, numAdditionalRows > 0 {
+                numAdditionalRows * Row.size
+            } else {
+                Table.pageSize
+            }
+            pager.flush(pageNum: pageNum, numBytes: numBytes)
+        }
+        pager.close()
+    }
+
     private func rowSlot(_ rowNum: UInt32) -> (pageIndex: Int, byteOffset: Int) {
         let pageIndex = Int(rowNum) / Table.rowsPerPage
         let rowOffset = Int(rowNum) % Table.rowsPerPage
         return (pageIndex, rowOffset * Row.size)
     }
 
+    @discardableResult
     public func insert(row: Row) -> ExecuteResult {
         guard numRows < Table.maxRows else { return .tableFull }
         let (pageIndex, byteOffset) = rowSlot(numRows)
-        // Allocate a zero-initialized buffer on the first write to this page
-        if pages[pageIndex] == nil {
-            pages[pageIndex] = Data(count: Table.pageSize)
-        }
+        var page = pager.getPage(pageIndex)
         let serialized = row.serialize()
-        pages[pageIndex]!.replaceSubrange(byteOffset ..< byteOffset + Row.size, with: serialized)
+        page.replaceSubrange(byteOffset ..< byteOffset + Row.size, with: serialized)
+        pager.setPage(pageIndex, data: page)
         numRows += 1
         return .success
     }
@@ -41,8 +59,8 @@ public class Table {
     public func select() -> [Row] {
         (0 ..< numRows).map { rowNum in
             let (pageIndex, byteOffset) = rowSlot(rowNum)
-            // Copy the slice to rebase indices to zero, as Data slices retain parent-based indices
-            let slice = Data(pages[pageIndex]![byteOffset ..< byteOffset + Row.size])
+            let page = pager.getPage(pageIndex)
+            let slice = Data(page[byteOffset ..< byteOffset + Row.size])
             return Row.deserialize(from: slice)
         }
     }

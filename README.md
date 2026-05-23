@@ -8,7 +8,13 @@ Inspired by and based on [cstack](https://github.com/cstack)'s excellent tutoria
 ## Build & Run
 
 ```bash
-swift run
+swift run -- <database-file>
+```
+
+Example:
+
+```bash
+swift run -- mydb.db
 ```
 
 ## Test
@@ -22,6 +28,7 @@ swift build && swift test
 ## Usage
 
 ```
-db > .exit       # exit the program
-db > .tables     # (example of an unrecognized command)
+db > insert 1 user1 user1@example.com
+db > select
+db > .exit
 ```
