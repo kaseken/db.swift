@@ -38,10 +38,12 @@ public class Table {
         pager.close()
     }
 
-    private func rowSlot(_ rowNum: UInt32) -> (pageIndex: Int, byteOffset: Int) {
-        let pageIndex = Int(rowNum) / Table.rowsPerPage
-        let rowOffset = Int(rowNum) % Table.rowsPerPage
-        return (pageIndex, rowOffset * Row.size)
+    func tableStart() -> Cursor {
+        Cursor(table: self, rowNum: 0, endOfTable: numRows == 0)
+    }
+
+    func tableEnd() -> Cursor {
+        Cursor(table: self, rowNum: numRows, endOfTable: true)
     }
 
     @discardableResult
@@ -49,7 +51,8 @@ public class Table {
         guard numRows < Table.maxRows else {
             return .tableFull
         }
-        let (pageIndex, byteOffset) = rowSlot(numRows)
+        let cursor = tableEnd()
+        let (pageIndex, byteOffset) = cursor.value()
         var page = pager.getPage(pageIndex)
         let serialized = row.serialize()
         page.replaceSubrange(byteOffset ..< byteOffset + Row.size, with: serialized)
@@ -59,11 +62,15 @@ public class Table {
     }
 
     public func select() -> [Row] {
-        (0 ..< numRows).map { rowNum in
-            let (pageIndex, byteOffset) = rowSlot(rowNum)
+        let cursor = tableStart()
+        var rows: [Row] = []
+        while !cursor.endOfTable {
+            let (pageIndex, byteOffset) = cursor.value()
             let page = pager.getPage(pageIndex)
             let slice = Data(page[byteOffset ..< byteOffset + Row.size])
-            return Row.deserialize(from: slice)
+            rows.append(Row.deserialize(from: slice))
+            cursor.advance()
         }
+        return rows
     }
 }
