@@ -26,7 +26,7 @@ public struct REPL {
     public init() {}
 
     private func printPrompt() {
-        FileHandle.standardOutput.write(Data("db > ".utf8))
+        print("db > ", terminator: "")
     }
 
     public func run() {
@@ -43,7 +43,7 @@ public struct REPL {
             switch Statement.prepare(line) {
             case let .success(statement):
                 switch statement.execute(on: table) {
-                case .success: break
+                case .success: print("Executed.")
                 case .tableFull: print("Error: Table full.")
                 }
             case .failure(.syntaxError):

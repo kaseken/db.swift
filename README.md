@@ -11,8 +11,10 @@ swift run
 
 ## Test
 
+E2E integration tests launch the compiled binary as a subprocess, so a build step is required first.
+
 ```bash
-swift test
+swift build && swift test
 ```
 
 ## Usage
