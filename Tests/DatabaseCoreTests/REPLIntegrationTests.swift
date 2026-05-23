@@ -22,8 +22,10 @@ struct REPLIntegrationTests {
 
         try process.run()
 
-        let input = (commands + [".exit"]).joined(separator: "\n") + "\n"
-        stdinPipe.fileHandleForWriting.write(Data(input.utf8))
+        if !commands.isEmpty {
+            let input = commands.joined(separator: "\n") + "\n"
+            stdinPipe.fileHandleForWriting.write(Data(input.utf8))
+        }
         stdinPipe.fileHandleForWriting.closeFile()
 
         let output = String(
@@ -39,6 +41,7 @@ struct REPLIntegrationTests {
         let result = try runScript([
             "insert 1 user1 person1@example.com",
             "select",
+            ".exit",
         ])
         #expect(result == [
             "db > Executed.",
@@ -54,6 +57,7 @@ struct REPLIntegrationTests {
         let result = try runScript([
             "insert 1 \(longUsername) \(longEmail)",
             "select",
+            ".exit",
         ])
         #expect(result == [
             "db > Executed.",
@@ -68,6 +72,7 @@ struct REPLIntegrationTests {
         let result = try runScript([
             "insert 1 \(longUsername) foo@bar.com",
             "insert 2 foo foo@bar.com",
+            ".exit",
         ])
         #expect(result == [
             "db > String is too long.",
@@ -80,6 +85,7 @@ struct REPLIntegrationTests {
         let result = try runScript([
             "insert -1 foo foo@example.com",
             "insert 1 foo foo@example.com",
+            ".exit",
         ])
         #expect(result == [
             "db > ID must be positive.",
@@ -89,7 +95,7 @@ struct REPLIntegrationTests {
     }
 
     @Test func `prints error message for unrecognized meta command`() throws {
-        let result = try runScript([".unknown"])
+        let result = try runScript([".unknown", ".exit"])
         #expect(result == [
             "db > Unrecognized command '.unknown'.",
             "db > ",
@@ -97,7 +103,7 @@ struct REPLIntegrationTests {
     }
 
     @Test func `prints error message for syntax error`() throws {
-        let result = try runScript(["insert foo"])
+        let result = try runScript(["insert foo", ".exit"])
         #expect(result == [
             "db > Syntax error. Could not parse statement.",
             "db > ",
@@ -105,16 +111,21 @@ struct REPLIntegrationTests {
     }
 
     @Test func `prints error message for unrecognized keyword`() throws {
-        let result = try runScript(["unknown"])
+        let result = try runScript(["unknown", ".exit"])
         #expect(result == [
             "db > Unrecognized keyword at start of 'unknown'.",
             "db > ",
         ])
     }
 
+    @Test func `exits gracefully on EOF`() throws {
+        let result = try runScript([])
+        #expect(result == ["db > "])
+    }
+
     @Test func `prints error message when table is full`() throws {
         let inserts = (1 ... 1401).map { "insert \($0) user\($0) person\($0)@example.com" }
-        let result = try runScript(inserts)
+        let result = try runScript(inserts + [".exit"])
         #expect(result.suffix(2) == [
             "db > Error: Table full.",
             "db > ",
