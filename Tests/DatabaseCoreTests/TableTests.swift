@@ -4,14 +4,14 @@ import Testing
 struct TableTests {
     @Test func `insert and select one row`() {
         let table = Table()
-        let row = Row(id: 1, username: "cstack", email: "foo@example.com")
+        let row = Row(id: 1, username: "foo", email: "foo@example.com")
         #expect(table.insert(row: row) == .success)
         #expect(table.select() == [row])
     }
 
     @Test func `insert and select two rows`() {
         let table = Table()
-        let row1 = Row(id: 1, username: "cstack", email: "foo@example.com")
+        let row1 = Row(id: 1, username: "foo", email: "foo@example.com")
         let row2 = Row(id: 2, username: "bob", email: "bob@example.com")
         table.insert(row: row1)
         table.insert(row: row2)
