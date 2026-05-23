@@ -1,20 +1,20 @@
-import Testing
 @testable import DatabaseCore
+import Testing
 
-@Suite struct StatementTests {
-    @Test func insertKeyword() {
+struct StatementTests {
+    @Test func `insert keyword`() {
         #expect(Statement("insert 1 foo foo@example.com") == .insert)
     }
 
-    @Test func selectKeyword() {
+    @Test func `select keyword`() {
         #expect(Statement("select") == .select)
     }
 
-    @Test func unknownKeyword() {
+    @Test func `unknown keyword`() {
         #expect(Statement("unknown") == nil)
     }
 
-    @Test func emptyInput() {
+    @Test func `empty input`() {
         #expect(Statement("") == nil)
     }
 }

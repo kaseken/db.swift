@@ -2,14 +2,14 @@
 import Testing
 
 struct MetaCommandTests {
-    @Test func exitCommand() {
+    @Test func `exit command`() {
         guard case .exit = MetaCommand(".exit") else {
             Issue.record("Expected .exit")
             return
         }
     }
 
-    @Test func unrecognizedCommand() {
+    @Test func `unrecognized command`() {
         guard case let .unrecognized(cmd) = MetaCommand(".unknown") else {
             Issue.record("Expected .unrecognized")
             return
@@ -17,7 +17,7 @@ struct MetaCommandTests {
         #expect(cmd == ".unknown")
     }
 
-    @Test func nonMetaCommandReturnsNil() {
+    @Test func `non meta command returns nil`() {
         #expect(MetaCommand("select") == nil)
     }
 }
