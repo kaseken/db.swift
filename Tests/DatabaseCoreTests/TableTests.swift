@@ -22,6 +22,18 @@ struct TableTests {
         #expect(table.select() == [row])
     }
 
+    @Test func `insert beyond one leaf node capacity`() throws {
+        let (table, path) = try makeTempTable()
+        defer {
+            table.close()
+            try? FileManager.default.removeItem(atPath: path)
+        }
+        for i: UInt32 in 1 ... 15 {
+            let row = Row(id: i, username: "user\(i)", email: "user\(i)@example.com")
+            #expect(table.insert(row: row) == .success)
+        }
+    }
+
     @Test func `insert and select two rows`() throws {
         let (table, path) = try makeTempTable()
         defer {

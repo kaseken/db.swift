@@ -185,7 +185,8 @@ struct REPLIntegrationTests {
             "  - key 7",
             "  - leaf (size 7)",
             "    - 8", "    - 9", "    - 10", "    - 11", "    - 12", "    - 13", "    - 14",
-            "db > Need to implement searching an internal node",
+            "db > Executed.",
+            "db > ",
         ])
     }
 
