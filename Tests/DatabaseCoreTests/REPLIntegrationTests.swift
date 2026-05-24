@@ -151,7 +151,7 @@ struct REPLIntegrationTests {
         defer { try? FileManager.default.removeItem(atPath: db) }
         let inserts = (1 ... 14).map { "insert \($0) user\($0) person\($0)@example.com" }
         let result = try runScript(inserts, dbFile: db)
-        #expect(result.last == "db > Need to implement splitting a leaf node.")
+        #expect(result.last == "db > Need to implement splitting a leaf page.")
     }
 
     @Test func `allows printing out the structure of a one-node btree`() throws {
@@ -170,9 +170,24 @@ struct REPLIntegrationTests {
             "db > Executed.",
             "db > Tree:",
             "leaf (size 3)",
-            "  - 0 : 3",
-            "  - 1 : 1",
-            "  - 2 : 2",
+            "  - 0 : 1",
+            "  - 1 : 2",
+            "  - 2 : 3",
+            "db > ",
+        ])
+    }
+
+    @Test func `prints error when inserting duplicate key`() throws {
+        let db = makeTempDBPath()
+        defer { try? FileManager.default.removeItem(atPath: db) }
+        let result = try runScript([
+            "insert 1 user1 person1@example.com",
+            "insert 1 user1 person1@example.com",
+            ".exit",
+        ], dbFile: db)
+        #expect(result == [
+            "db > Executed.",
+            "db > Error: Duplicate key.",
             "db > ",
         ])
     }

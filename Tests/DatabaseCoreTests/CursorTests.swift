@@ -34,7 +34,7 @@ struct CursorTests {
         #expect(cursor.endOfTable == false)
     }
 
-    @Test func `tableEnd positions past last cell`() throws {
+    @Test func `tableFind returns correct position for existing key`() throws {
         let (table, path) = try makeTempTable()
         defer {
             table.close()
@@ -42,7 +42,20 @@ struct CursorTests {
         }
         table.insert(row: Row(id: 1, username: "a", email: "a@example.com"))
         table.insert(row: Row(id: 2, username: "b", email: "b@example.com"))
-        let cursor = table.tableEnd()
+        let cursor = table.tableFind(key: 1)
+        #expect(cursor.cellNum == 0)
+        #expect(cursor.endOfTable == false)
+    }
+
+    @Test func `tableFind returns insertion point for non-existing key`() throws {
+        let (table, path) = try makeTempTable()
+        defer {
+            table.close()
+            try? FileManager.default.removeItem(atPath: path)
+        }
+        table.insert(row: Row(id: 1, username: "a", email: "a@example.com"))
+        table.insert(row: Row(id: 2, username: "b", email: "b@example.com"))
+        let cursor = table.tableFind(key: 3)
         #expect(cursor.cellNum == 2)
         #expect(cursor.endOfTable == true)
     }
