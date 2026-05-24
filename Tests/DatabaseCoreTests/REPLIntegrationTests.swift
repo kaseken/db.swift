@@ -146,14 +146,6 @@ struct REPLIntegrationTests {
         #expect(result == ["db > "])
     }
 
-    @Test func `prints error message when leaf node is full`() throws {
-        let db = makeTempDBPath()
-        defer { try? FileManager.default.removeItem(atPath: db) }
-        let inserts = (1 ... 14).map { "insert \($0) user\($0) person\($0)@example.com" }
-        let result = try runScript(inserts, dbFile: db)
-        #expect(result.last == "db > Need to implement splitting a leaf page.")
-    }
-
     @Test func `allows printing out the structure of a one-node btree`() throws {
         let db = makeTempDBPath()
         defer { try? FileManager.default.removeItem(atPath: db) }
@@ -169,11 +161,31 @@ struct REPLIntegrationTests {
             "db > Executed.",
             "db > Executed.",
             "db > Tree:",
-            "leaf (size 3)",
-            "  - 0 : 1",
-            "  - 1 : 2",
-            "  - 2 : 3",
+            "- leaf (size 3)",
+            "  - 1",
+            "  - 2",
+            "  - 3",
             "db > ",
+        ])
+    }
+
+    @Test func `allows printing out the structure of a 3-leaf-node btree`() throws {
+        let db = makeTempDBPath()
+        defer { try? FileManager.default.removeItem(atPath: db) }
+        let inserts = (1 ... 14).map { "insert \($0) user\($0) person\($0)@example.com" }
+        let result = try runScript(
+            inserts + [".btree", "insert 15 user15 person15@example.com", ".exit"],
+            dbFile: db,
+        )
+        #expect(Array(result.dropFirst(14)) == [
+            "db > Tree:",
+            "- internal (size 1)",
+            "  - leaf (size 7)",
+            "    - 1", "    - 2", "    - 3", "    - 4", "    - 5", "    - 6", "    - 7",
+            "  - key 7",
+            "  - leaf (size 7)",
+            "    - 8", "    - 9", "    - 10", "    - 11", "    - 12", "    - 13", "    - 14",
+            "db > Need to implement searching an internal node",
         ])
     }
 
