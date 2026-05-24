@@ -19,7 +19,13 @@ public class Cursor {
         let node = table.pager.getPage(Int(pageNum))
         cellNum += 1
         if cellNum >= LeafNode.numCells(node) {
-            endOfTable = true
+            let nextPageNum = LeafNode.nextLeaf(node)
+            if nextPageNum == 0 {
+                endOfTable = true
+            } else {
+                pageNum = nextPageNum
+                cellNum = 0
+            }
         }
     }
 }

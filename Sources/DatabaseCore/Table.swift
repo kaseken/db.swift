@@ -28,9 +28,7 @@ public class Table {
     }
 
     func tableStart() -> Cursor {
-        let page = pager.getPage(Int(rootPageNum))
-        let numCells = LeafNode.numCells(page)
-        return Cursor(table: self, pageNum: rootPageNum, cellNum: 0, endOfTable: numCells == 0)
+        tableFind(key: 0)
     }
 
     private func internalNodeFind(pageNum: UInt32, key: UInt32) -> Cursor {
@@ -133,6 +131,7 @@ public class Table {
     private func leafNodeSplitAndInsert(cursor: Cursor, key: UInt32, row: Row) {
         let oldPageCopy = pager.getPage(Int(cursor.pageNum))
         var oldPage = oldPageCopy
+        let oldNextLeaf = LeafNode.nextLeaf(oldPageCopy)
         let newPageNum = pager.numPages
         var newPage = LeafNode.initialize()
         BTreeNode.setIsRoot(&newPage, false)
@@ -172,7 +171,9 @@ public class Table {
         }
 
         LeafNode.setNumCells(&oldPage, UInt32(LeafNode.leftSplitCount))
+        LeafNode.setNextLeaf(&oldPage, UInt32(newPageNum))
         LeafNode.setNumCells(&newPage, UInt32(LeafNode.rightSplitCount))
+        LeafNode.setNextLeaf(&newPage, oldNextLeaf)
         pager.setPage(Int(cursor.pageNum), data: oldPage)
         _ = pager.getPage(newPageNum)
         pager.setPage(newPageNum, data: newPage)
