@@ -33,6 +33,34 @@ public class Table {
         return Cursor(table: self, pageNum: rootPageNum, cellNum: 0, endOfTable: numCells == 0)
     }
 
+    private func internalNodeFind(pageNum: UInt32, key: UInt32) -> Cursor {
+        let page = pager.getPage(Int(pageNum))
+        let numKeys = InternalNode.numKeys(page)
+
+        // Binary search: find the leftmost child index whose separator key >= key.
+        // Valid child indices are 0...numKeys (numKeys selects the rightChild).
+        var minIndex: UInt32 = 0
+        var maxIndex = numKeys
+        while minIndex < maxIndex {
+            let index = (minIndex + maxIndex) / 2
+            let keyToRight = InternalNode.key(page, keyNum: Int(index))
+            if keyToRight >= key {
+                maxIndex = index
+            } else {
+                minIndex = index + 1
+            }
+        }
+
+        let childPageNum = InternalNode.child(page, childNum: Int(minIndex))
+        let childPage = pager.getPage(Int(childPageNum))
+        switch BTreeNode.nodeType(childPage) {
+        case .leaf:
+            return leafNodeFind(pageNum: childPageNum, key: key)
+        case .internal:
+            return internalNodeFind(pageNum: childPageNum, key: key)
+        }
+    }
+
     private func leafNodeFind(pageNum: UInt32, key: UInt32) -> Cursor {
         let page = pager.getPage(Int(pageNum))
         let numCells = LeafNode.numCells(page)
@@ -59,8 +87,7 @@ public class Table {
         case .leaf:
             return leafNodeFind(pageNum: rootPageNum, key: key)
         case .internal:
-            print("Need to implement searching an internal node")
-            Foundation.exit(1)
+            return internalNodeFind(pageNum: rootPageNum, key: key)
         }
     }
 
