@@ -12,6 +12,7 @@ class Pager {
     /// The file size at the time this Pager was opened. Used only during cache-miss
     /// to determine whether a page already exists on disk or needs to be freshly allocated.
     let diskFileLength: Int
+    private(set) var numPages: Int
     private var pages: [Data?]
 
     init(filename: String) throws {
@@ -24,6 +25,7 @@ class Pager {
         }
         fileHandle = fh
         diskFileLength = Int(fh.seekToEndOfFile())
+        numPages = diskFileLength / Pager.pageSize
         pages = Array(repeating: nil, count: Pager.maxPages)
     }
 
@@ -35,6 +37,9 @@ class Pager {
         let pageOffset = pageNum * Pager.pageSize
         guard pageOffset < diskFileLength else {
             // Page is beyond the end of the file — allocate a blank page
+            if pageNum >= numPages {
+                numPages = pageNum + 1
+            }
             let page = Data(count: Pager.pageSize)
             pages[pageNum] = page
             return page

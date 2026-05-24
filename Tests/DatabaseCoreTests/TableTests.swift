@@ -34,18 +34,4 @@ struct TableTests {
         table.insert(row: row2)
         #expect(table.select() == [row1, row2])
     }
-
-    @Test func `table full error`() throws {
-        let (table, path) = try makeTempTable()
-        defer {
-            table.close()
-            try? FileManager.default.removeItem(atPath: path)
-        }
-        for i in 0 ..< Table.maxRows {
-            let row = Row(id: UInt32(i), username: "u", email: "e@example.com")
-            #expect(table.insert(row: row) == .success)
-        }
-        let extra = Row(id: 9999, username: "over", email: "over@example.com")
-        #expect(table.insert(row: extra) == .tableFull)
-    }
 }

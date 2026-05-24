@@ -146,13 +146,49 @@ struct REPLIntegrationTests {
         #expect(result == ["db > "])
     }
 
-    @Test func `prints error message when table is full`() throws {
+    @Test func `prints error message when leaf node is full`() throws {
         let db = makeTempDBPath()
         defer { try? FileManager.default.removeItem(atPath: db) }
-        let inserts = (1 ... 1401).map { "insert \($0) user\($0) person\($0)@example.com" }
-        let result = try runScript(inserts + [".exit"], dbFile: db)
-        #expect(result.suffix(2) == [
-            "db > Error: Table full.",
+        let inserts = (1 ... 14).map { "insert \($0) user\($0) person\($0)@example.com" }
+        let result = try runScript(inserts, dbFile: db)
+        #expect(result.last == "db > Need to implement splitting a leaf node.")
+    }
+
+    @Test func `allows printing out the structure of a one-node btree`() throws {
+        let db = makeTempDBPath()
+        defer { try? FileManager.default.removeItem(atPath: db) }
+        let result = try runScript([
+            "insert 3 user3 person3@example.com",
+            "insert 1 user1 person1@example.com",
+            "insert 2 user2 person2@example.com",
+            ".btree",
+            ".exit",
+        ], dbFile: db)
+        #expect(result == [
+            "db > Executed.",
+            "db > Executed.",
+            "db > Executed.",
+            "db > Tree:",
+            "leaf (size 3)",
+            "  - 0 : 3",
+            "  - 1 : 1",
+            "  - 2 : 2",
+            "db > ",
+        ])
+    }
+
+    @Test func `prints constants`() throws {
+        let db = makeTempDBPath()
+        defer { try? FileManager.default.removeItem(atPath: db) }
+        let result = try runScript([".constants", ".exit"], dbFile: db)
+        #expect(result == [
+            "db > Constants:",
+            "ROW_SIZE: 291",
+            "COMMON_NODE_HEADER_SIZE: 6",
+            "LEAF_NODE_HEADER_SIZE: 10",
+            "LEAF_NODE_CELL_SIZE: 295",
+            "LEAF_NODE_SPACE_FOR_CELLS: 4086",
+            "LEAF_NODE_MAX_CELLS: 13",
             "db > ",
         ])
     }

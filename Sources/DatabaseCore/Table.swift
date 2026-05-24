@@ -6,59 +6,67 @@ public enum ExecuteResult {
 }
 
 public class Table {
-    static let pageSize = Pager.pageSize
-    static let maxPages = Pager.maxPages
-    static let rowsPerPage = pageSize / Row.size // 14
-    static let maxRows = rowsPerPage * maxPages // 1400
-
-    private(set) var numRows: UInt32
-    private let pager: Pager
+    private(set) var rootPageNum: UInt32 = 0
+    let pager: Pager
 
     public init(filename: String) throws {
         let pager = try Pager(filename: filename)
         self.pager = pager
-        let numFullPages = pager.diskFileLength / Table.pageSize
-        let remainingBytes = pager.diskFileLength % Table.pageSize
-        numRows = UInt32(numFullPages * Table.rowsPerPage + remainingBytes / Row.size)
+        if pager.numPages == 0 {
+            var rootPage = pager.getPage(0)
+            rootPage = LeafNode.initialize()
+            pager.setPage(0, data: rootPage)
+        }
     }
 
     public func close() {
-        let numFullPages = Int(numRows) / Table.rowsPerPage
-        let numAdditionalRows = Int(numRows) % Table.rowsPerPage
-        let pagesToFlush = numFullPages + (numAdditionalRows > 0 ? 1 : 0)
-
-        for pageNum in 0 ..< pagesToFlush {
-            let numBytes: Int = if pageNum == numFullPages, numAdditionalRows > 0 {
-                numAdditionalRows * Row.size
-            } else {
-                Table.pageSize
-            }
-            pager.flush(pageNum: pageNum, numBytes: numBytes)
+        for i in 0 ..< pager.numPages {
+            pager.flush(pageNum: i, numBytes: Pager.pageSize)
         }
         pager.close()
     }
 
     func tableStart() -> Cursor {
-        Cursor(table: self, rowNum: 0, endOfTable: numRows == 0)
+        let rootNode = pager.getPage(Int(rootPageNum))
+        let numCells = LeafNode.numCells(rootNode)
+        return Cursor(table: self, pageNum: rootPageNum, cellNum: 0, endOfTable: numCells == 0)
     }
 
     func tableEnd() -> Cursor {
-        Cursor(table: self, rowNum: numRows, endOfTable: true)
+        let rootNode = pager.getPage(Int(rootPageNum))
+        let numCells = LeafNode.numCells(rootNode)
+        return Cursor(table: self, pageNum: rootPageNum, cellNum: numCells, endOfTable: true)
     }
 
     @discardableResult
     public func insert(row: Row) -> ExecuteResult {
-        guard numRows < Table.maxRows else {
-            return .tableFull
-        }
         let cursor = tableEnd()
-        let (pageIndex, byteOffset) = cursor.value()
-        var page = pager.getPage(pageIndex)
-        let serialized = row.serialize()
-        page.replaceSubrange(byteOffset ..< byteOffset + Row.size, with: serialized)
-        pager.setPage(pageIndex, data: page)
-        numRows += 1
+        leafNodeInsert(cursor: cursor, key: row.id, row: row)
         return .success
+    }
+
+    private func leafNodeInsert(cursor: Cursor, key: UInt32, row: Row) {
+        var node = pager.getPage(Int(cursor.pageNum))
+        let numCells = LeafNode.numCells(node)
+        if numCells >= UInt32(LeafNode.maxCells) {
+            print("Need to implement splitting a leaf node.")
+            Foundation.exit(1)
+        }
+        if cursor.cellNum < numCells {
+            var i = numCells
+            while i > cursor.cellNum {
+                let src = LeafNode.cellOffset(cellNum: Int(i) - 1)
+                let dst = LeafNode.cellOffset(cellNum: Int(i))
+                node.replaceSubrange(dst ..< dst + LeafNode.cellSize, with: node[src ..< src + LeafNode.cellSize])
+                i -= 1
+            }
+        }
+        LeafNode.setNumCells(&node, numCells + 1)
+        LeafNode.setKey(&node, cellNum: Int(cursor.cellNum), key: key)
+        let serialized = row.serialize()
+        let valueOff = LeafNode.valueOffset(cellNum: Int(cursor.cellNum))
+        node.replaceSubrange(valueOff ..< valueOff + Row.size, with: serialized)
+        pager.setPage(Int(cursor.pageNum), data: node)
     }
 
     public func select() -> [Row] {
@@ -72,5 +80,15 @@ public class Table {
             cursor.advance()
         }
         return rows
+    }
+
+    func printTree() {
+        let rootNode = pager.getPage(Int(rootPageNum))
+        let numCells = LeafNode.numCells(rootNode)
+        print("leaf (size \(numCells))")
+        for i in 0 ..< numCells {
+            let key = LeafNode.key(rootNode, cellNum: Int(i))
+            print("  - \(i) : \(key)")
+        }
     }
 }

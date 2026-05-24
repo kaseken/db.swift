@@ -2,21 +2,37 @@ import Foundation
 
 enum MetaCommand: Equatable {
     case exit
+    case constants
+    case btree
     case unrecognized(String)
 
     init?(_ input: String) {
         guard input.hasPrefix(".") else { return nil }
         switch input {
         case ".exit": self = .exit
+        case ".constants": self = .constants
+        case ".btree": self = .btree
         default: self = .unrecognized(input)
         }
     }
 
-    /// Returns true if the REPL should exit.
-    func execute() -> Bool {
+    func execute(table: Table) -> Bool {
         switch self {
         case .exit:
             return true
+        case .constants:
+            print("Constants:")
+            print("ROW_SIZE: \(Row.size)")
+            print("COMMON_NODE_HEADER_SIZE: \(LeafNode.commonNodeHeaderSize)")
+            print("LEAF_NODE_HEADER_SIZE: \(LeafNode.headerSize)")
+            print("LEAF_NODE_CELL_SIZE: \(LeafNode.cellSize)")
+            print("LEAF_NODE_SPACE_FOR_CELLS: \(LeafNode.spaceForCells)")
+            print("LEAF_NODE_MAX_CELLS: \(LeafNode.maxCells)")
+            return false
+        case .btree:
+            print("Tree:")
+            table.printTree()
+            return false
         case let .unrecognized(cmd):
             print("Unrecognized command '\(cmd)'.")
             return false
@@ -39,7 +55,7 @@ public struct REPL {
             guard let line = readLine() else { break }
 
             if let cmd = MetaCommand(line) {
-                if cmd.execute() { break }
+                if cmd.execute(table: table) { break }
                 continue
             }
 
