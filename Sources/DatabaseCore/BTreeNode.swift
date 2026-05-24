@@ -17,6 +17,7 @@ enum BTreeNode {
     static let isRootOffset = 1
     static let parentPointerOffset = 2
     static let headerSize = 6
+    static let invalidPageNum: UInt32 = .max
 
     static func nodeType(_ page: Data) -> NodeType {
         NodeType(rawValue: page[nodeTypeOffset])!
@@ -186,6 +187,7 @@ enum InternalNode {
         page[BTreeNode.nodeTypeOffset] = NodeType.internal.rawValue
         page[BTreeNode.isRootOffset] = 0
         // numKeys is already 0 from zero-initialized Data
+        setRightChild(&page, BTreeNode.invalidPageNum)
         return page
     }
 

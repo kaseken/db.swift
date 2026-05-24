@@ -79,6 +79,21 @@ struct TableTests {
         #expect(table.select() == rows)
     }
 
+    @Test func `select all rows after internal node split`() throws {
+        let (table, path) = try makeTempTable()
+        defer {
+            table.close()
+            try? FileManager.default.removeItem(atPath: path)
+        }
+        let rows: [Row] = (1 ... 65).map { i in
+            Row(id: UInt32(i), username: "user\(i)", email: "user\(i)@example.com")
+        }
+        for row in rows {
+            table.insert(row: row)
+        }
+        #expect(table.select() == rows)
+    }
+
     @Test func `non-root split inserts new child into interior of internal node`() throws {
         // Inserts keys 15-28 first so rows 15-21 become the left child and 22-28 the right
         // child after the root split. Then inserting keys 1-7 fills and splits the left child,
