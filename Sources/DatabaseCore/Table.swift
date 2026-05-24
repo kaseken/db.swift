@@ -279,6 +279,11 @@ public class Table {
         let actualOldPageNum: UInt32
 
         if splittingRoot {
+            // Allocate and initialize newPageNum first so createNewRoot doesn't
+            // reuse the same page number for the left child copy of the root.
+            var newPage = InternalNode.initialize()
+            _ = pager.getPage(newPageNum)
+            pager.setPage(newPageNum, data: newPage)
             createNewRoot(rightChildPageNum: UInt32(newPageNum))
             let rootPage = pager.getPage(Int(rootPageNum))
             actualOldPageNum = InternalNode.child(rootPage, childNum: 0)
