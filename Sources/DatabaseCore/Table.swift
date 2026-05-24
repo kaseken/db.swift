@@ -2,6 +2,7 @@ import Foundation
 
 public enum ExecuteResult {
     case success
+    case duplicateKey
 }
 
 public class Table {
@@ -32,15 +33,41 @@ public class Table {
         return Cursor(table: self, pageNum: rootPageNum, cellNum: 0, endOfTable: numCells == 0)
     }
 
-    func tableEnd() -> Cursor {
-        let rootNode = pager.getPage(Int(rootPageNum))
-        let numCells = LeafNode.numCells(rootNode)
-        return Cursor(table: self, pageNum: rootPageNum, cellNum: numCells, endOfTable: true)
+    private func leafNodeFind(pageNum: UInt32, key: UInt32) -> Cursor {
+        let node = pager.getPage(Int(pageNum))
+        let numCells = LeafNode.numCells(node)
+        var minIndex: UInt32 = 0
+        var onePastMaxIndex = numCells
+        while minIndex < onePastMaxIndex {
+            let index = (minIndex + onePastMaxIndex) / 2
+            let keyAtIndex = LeafNode.key(node, cellNum: Int(index))
+            if key == keyAtIndex {
+                return Cursor(table: self, pageNum: pageNum, cellNum: index, endOfTable: false)
+            }
+            if key < keyAtIndex {
+                onePastMaxIndex = index
+            } else {
+                minIndex = index + 1
+            }
+        }
+        return Cursor(table: self, pageNum: pageNum, cellNum: minIndex, endOfTable: minIndex >= numCells)
+    }
+
+    func tableFind(key: UInt32) -> Cursor {
+        leafNodeFind(pageNum: rootPageNum, key: key)
     }
 
     @discardableResult
     public func insert(row: Row) -> ExecuteResult {
-        let cursor = tableEnd()
+        let cursor = tableFind(key: row.id)
+        let node = pager.getPage(Int(cursor.pageNum))
+        let numCells = LeafNode.numCells(node)
+        if cursor.cellNum < numCells {
+            let existingKey = LeafNode.key(node, cellNum: Int(cursor.cellNum))
+            if existingKey == row.id {
+                return .duplicateKey
+            }
+        }
         leafNodeInsert(cursor: cursor, key: row.id, row: row)
         return .success
     }
@@ -52,18 +79,15 @@ public class Table {
             print("Need to implement splitting a leaf node.")
             Foundation.exit(1)
         }
-        // TODO: Implement cell shifting in Part 9+ when binary search determines the insert position.
-        // insert() currently always calls tableEnd(), so cursor.cellNum == numCells is guaranteed.
-        assert(cursor.cellNum == numCells, "Mid-node insertion not yet implemented")
-//        if cursor.cellNum < numCells {
-//            var i = numCells
-//            while i > cursor.cellNum {
-//                let src = LeafNode.cellOffset(cellNum: Int(i) - 1)
-//                let dst = LeafNode.cellOffset(cellNum: Int(i))
-//                node.replaceSubrange(dst ..< dst + LeafNode.cellSize, with: node[src ..< src + LeafNode.cellSize])
-//                i -= 1
-//            }
-//        }
+        if cursor.cellNum < numCells {
+            var i = numCells
+            while i > cursor.cellNum {
+                let src = LeafNode.cellOffset(cellNum: Int(i) - 1)
+                let dst = LeafNode.cellOffset(cellNum: Int(i))
+                node.replaceSubrange(dst ..< dst + LeafNode.cellSize, with: node[src ..< src + LeafNode.cellSize])
+                i -= 1
+            }
+        }
         LeafNode.setNumCells(&node, numCells + 1)
         LeafNode.setKey(&node, cellNum: Int(cursor.cellNum), key: key)
         let serialized = row.serialize()

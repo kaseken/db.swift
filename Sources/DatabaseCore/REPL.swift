@@ -63,6 +63,7 @@ public struct REPL {
             case let .success(statement):
                 switch statement.execute(on: table) {
                 case .success: print("Executed.")
+                case .duplicateKey: print("Error: Duplicate key.")
                 }
             case .failure(.syntaxError):
                 print("Syntax error. Could not parse statement.")
