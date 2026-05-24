@@ -28,19 +28,19 @@ public class Table {
     }
 
     func tableStart() -> Cursor {
-        let rootNode = pager.getPage(Int(rootPageNum))
-        let numCells = LeafNode.numCells(rootNode)
+        let page = pager.getPage(Int(rootPageNum))
+        let numCells = LeafNode.numCells(page)
         return Cursor(table: self, pageNum: rootPageNum, cellNum: 0, endOfTable: numCells == 0)
     }
 
     private func leafNodeFind(pageNum: UInt32, key: UInt32) -> Cursor {
-        let node = pager.getPage(Int(pageNum))
-        let numCells = LeafNode.numCells(node)
+        let page = pager.getPage(Int(pageNum))
+        let numCells = LeafNode.numCells(page)
         var minIndex: UInt32 = 0
         var onePastMaxIndex = numCells
         while minIndex < onePastMaxIndex {
             let index = (minIndex + onePastMaxIndex) / 2
-            let keyAtIndex = LeafNode.key(node, cellNum: Int(index))
+            let keyAtIndex = LeafNode.key(page, cellNum: Int(index))
             if key == keyAtIndex {
                 return Cursor(table: self, pageNum: pageNum, cellNum: index, endOfTable: false)
             }
@@ -60,10 +60,10 @@ public class Table {
     @discardableResult
     public func insert(row: Row) -> ExecuteResult {
         let cursor = tableFind(key: row.id)
-        let node = pager.getPage(Int(cursor.pageNum))
-        let numCells = LeafNode.numCells(node)
+        let page = pager.getPage(Int(cursor.pageNum))
+        let numCells = LeafNode.numCells(page)
         if cursor.cellNum < numCells {
-            let existingKey = LeafNode.key(node, cellNum: Int(cursor.cellNum))
+            let existingKey = LeafNode.key(page, cellNum: Int(cursor.cellNum))
             if existingKey == row.id {
                 return .duplicateKey
             }
@@ -73,10 +73,10 @@ public class Table {
     }
 
     private func leafNodeInsert(cursor: Cursor, key: UInt32, row: Row) {
-        var node = pager.getPage(Int(cursor.pageNum))
-        let numCells = LeafNode.numCells(node)
+        var page = pager.getPage(Int(cursor.pageNum))
+        let numCells = LeafNode.numCells(page)
         if numCells >= UInt32(LeafNode.maxCells) {
-            print("Need to implement splitting a leaf node.")
+            print("Need to implement splitting a leaf page.")
             Foundation.exit(1)
         }
         if cursor.cellNum < numCells {
@@ -84,16 +84,16 @@ public class Table {
             while i > cursor.cellNum {
                 let src = LeafNode.cellOffset(cellNum: Int(i) - 1)
                 let dst = LeafNode.cellOffset(cellNum: Int(i))
-                node.replaceSubrange(dst ..< dst + LeafNode.cellSize, with: node[src ..< src + LeafNode.cellSize])
+                page.replaceSubrange(dst ..< dst + LeafNode.cellSize, with: page[src ..< src + LeafNode.cellSize])
                 i -= 1
             }
         }
-        LeafNode.setNumCells(&node, numCells + 1)
-        LeafNode.setKey(&node, cellNum: Int(cursor.cellNum), key: key)
+        LeafNode.setNumCells(&page, numCells + 1)
+        LeafNode.setKey(&page, cellNum: Int(cursor.cellNum), key: key)
         let serialized = row.serialize()
         let valueOff = LeafNode.valueOffset(cellNum: Int(cursor.cellNum))
-        node.replaceSubrange(valueOff ..< valueOff + Row.size, with: serialized)
-        pager.setPage(Int(cursor.pageNum), data: node)
+        page.replaceSubrange(valueOff ..< valueOff + Row.size, with: serialized)
+        pager.setPage(Int(cursor.pageNum), data: page)
     }
 
     public func select() -> [Row] {
@@ -110,11 +110,11 @@ public class Table {
     }
 
     func printTree() {
-        let rootNode = pager.getPage(Int(rootPageNum))
-        let numCells = LeafNode.numCells(rootNode)
+        let page = pager.getPage(Int(rootPageNum))
+        let numCells = LeafNode.numCells(page)
         print("leaf (size \(numCells))")
         for i in 0 ..< numCells {
-            let key = LeafNode.key(rootNode, cellNum: Int(i))
+            let key = LeafNode.key(page, cellNum: Int(i))
             print("  - \(i) : \(key)")
         }
     }

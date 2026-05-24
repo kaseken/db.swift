@@ -151,7 +151,7 @@ struct REPLIntegrationTests {
         defer { try? FileManager.default.removeItem(atPath: db) }
         let inserts = (1 ... 14).map { "insert \($0) user\($0) person\($0)@example.com" }
         let result = try runScript(inserts, dbFile: db)
-        #expect(result.last == "db > Need to implement splitting a leaf node.")
+        #expect(result.last == "db > Need to implement splitting a leaf page.")
     }
 
     @Test func `allows printing out the structure of a one-node btree`() throws {
