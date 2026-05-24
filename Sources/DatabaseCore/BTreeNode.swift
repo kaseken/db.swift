@@ -29,6 +29,18 @@ enum BTreeNode {
     static func setIsRoot(_ page: inout Data, _ value: Bool) {
         page[isRootOffset] = value ? 1 : 0
     }
+
+    static func parent(_ page: Data) -> UInt32 {
+        page.withUnsafeBytes { ptr in
+            ptr.baseAddress!.loadUnaligned(fromByteOffset: parentPointerOffset, as: UInt32.self)
+        }
+    }
+
+    static func setParent(_ page: inout Data, _ value: UInt32) {
+        withUnsafeBytes(of: value) { src in
+            page.replaceSubrange(parentPointerOffset ..< parentPointerOffset + 4, with: src)
+        }
+    }
 }
 
 /// Namespace for the leaf node page format.
@@ -201,8 +213,22 @@ enum InternalNode {
         }
     }
 
-    private static func cellOffset(cellNum: Int) -> Int {
+    static let maxCells = 3
+
+    static func cellOffset(cellNum: Int) -> Int {
         headerSize + cellNum * cellSize
+    }
+
+    /// Binary search: returns the index of the child that should contain `key`.
+    static func findChildIndex(_ page: Data, key: UInt32) -> Int {
+        var minIndex: UInt32 = 0
+        var maxIndex = numKeys(page)
+        while minIndex < maxIndex {
+            let mid = (minIndex + maxIndex) / 2
+            if InternalNode.key(page, keyNum: Int(mid)) >= key { maxIndex = mid }
+            else { minIndex = mid + 1 }
+        }
+        return Int(minIndex)
     }
 
     /// Returns the child page number for `childNum`.

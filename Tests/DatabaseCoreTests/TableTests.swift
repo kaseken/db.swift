@@ -61,4 +61,21 @@ struct TableTests {
         }
         #expect(table.select() == rows)
     }
+
+    @Test func `select all rows after two leaf splits`() throws {
+        // Rows 1-13 fill the root leaf; row 14 triggers a root split (2 leaves).
+        // Rows 15-20 fill the right leaf; row 21 triggers a non-root split (3 leaves).
+        let (table, path) = try makeTempTable()
+        defer {
+            table.close()
+            try? FileManager.default.removeItem(atPath: path)
+        }
+        let rows: [Row] = (1 ... 21).map { i in
+            Row(id: UInt32(i), username: "user\(i)", email: "user\(i)@example.com")
+        }
+        for row in rows {
+            table.insert(row: row)
+        }
+        #expect(table.select() == rows)
+    }
 }

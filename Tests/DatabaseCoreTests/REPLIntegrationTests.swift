@@ -228,6 +228,27 @@ struct REPLIntegrationTests {
         ])
     }
 
+    @Test func `allows printing out the structure of a 3-leaf-node btree after non-root split`() throws {
+        // 21 rows: root split at row 14, then non-root split at row 21 → internal (size 2), 3 leaves
+        let db = makeTempDBPath()
+        defer { try? FileManager.default.removeItem(atPath: db) }
+        let inserts = (1 ... 21).map { "insert \($0) user\($0) person\($0)@example.com" }
+        let result = try runScript(inserts + [".btree", ".exit"], dbFile: db)
+        #expect(Array(result.dropFirst(21)) == [
+            "db > Tree:",
+            "- internal (size 2)",
+            "  - leaf (size 7)",
+            "    - 1", "    - 2", "    - 3", "    - 4", "    - 5", "    - 6", "    - 7",
+            "  - key 7",
+            "  - leaf (size 7)",
+            "    - 8", "    - 9", "    - 10", "    - 11", "    - 12", "    - 13", "    - 14",
+            "  - key 14",
+            "  - leaf (size 7)",
+            "    - 15", "    - 16", "    - 17", "    - 18", "    - 19", "    - 20", "    - 21",
+            "db > ",
+        ])
+    }
+
     @Test func `prints constants`() throws {
         let db = makeTempDBPath()
         defer { try? FileManager.default.removeItem(atPath: db) }
