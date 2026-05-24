@@ -146,14 +146,6 @@ struct REPLIntegrationTests {
         #expect(result == ["db > "])
     }
 
-    @Test func `prints error message when leaf node is full`() throws {
-        let db = makeTempDBPath()
-        defer { try? FileManager.default.removeItem(atPath: db) }
-        let inserts = (1 ... 14).map { "insert \($0) user\($0) person\($0)@example.com" }
-        let result = try runScript(inserts, dbFile: db)
-        #expect(result.last == "db > Need to implement splitting a leaf page.")
-    }
-
     @Test func `allows printing out the structure of a one-node btree`() throws {
         let db = makeTempDBPath()
         defer { try? FileManager.default.removeItem(atPath: db) }
@@ -169,10 +161,53 @@ struct REPLIntegrationTests {
             "db > Executed.",
             "db > Executed.",
             "db > Tree:",
-            "leaf (size 3)",
-            "  - 0 : 1",
-            "  - 1 : 2",
-            "  - 2 : 3",
+            "- leaf (size 3)",
+            "  - 1",
+            "  - 2",
+            "  - 3",
+            "db > ",
+        ])
+    }
+
+    @Test func `allows printing out the structure of a 3-leaf-node btree`() throws {
+        let db = makeTempDBPath()
+        defer { try? FileManager.default.removeItem(atPath: db) }
+        let inserts = (1 ... 14).map { "insert \($0) user\($0) person\($0)@example.com" }
+        let result = try runScript(
+            inserts + [".btree", "insert 15 user15 person15@example.com", ".exit"],
+            dbFile: db,
+        )
+        #expect(Array(result.dropFirst(14)) == [
+            "db > Tree:",
+            "- internal (size 1)",
+            "  - leaf (size 7)",
+            "    - 1", "    - 2", "    - 3", "    - 4", "    - 5", "    - 6", "    - 7",
+            "  - key 7",
+            "  - leaf (size 7)",
+            "    - 8", "    - 9", "    - 10", "    - 11", "    - 12", "    - 13", "    - 14",
+            "db > Need to implement searching an internal node",
+        ])
+    }
+
+    @Test func `splits correctly when new cell lands in the left node`() throws {
+        // Insert 1-6 and 8-14 first, then insert 7 last.
+        // cursor.cellNum for key 7 is 6, which is < leftSplitCount (7),
+        // so the new cell is written into the left (old) page — the branch not covered by sequential inserts.
+        let db = makeTempDBPath()
+        defer { try? FileManager.default.removeItem(atPath: db) }
+        let insertsWithout7 = (1 ... 14).filter { $0 != 7 }.map { "insert \($0) user\($0) person\($0)@example.com" }
+        let result = try runScript(
+            insertsWithout7 + ["insert 7 user7 person7@example.com", ".btree", ".exit"],
+            dbFile: db,
+        )
+        #expect(Array(result.dropFirst(14)) == [
+            "db > Tree:",
+            "- internal (size 1)",
+            "  - leaf (size 7)",
+            "    - 1", "    - 2", "    - 3", "    - 4", "    - 5", "    - 6", "    - 7",
+            "  - key 7",
+            "  - leaf (size 7)",
+            "    - 8", "    - 9", "    - 10", "    - 11", "    - 12", "    - 13", "    - 14",
             "db > ",
         ])
     }
