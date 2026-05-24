@@ -213,8 +213,6 @@ enum InternalNode {
         }
     }
 
-    static let maxCells = 3
-
     static func cellOffset(cellNum: Int) -> Int {
         headerSize + cellNum * cellSize
     }

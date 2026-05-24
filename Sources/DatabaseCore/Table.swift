@@ -8,8 +8,11 @@ public enum ExecuteResult {
 public class Table {
     let rootPageNum: UInt32 = 0
     let pager: Pager
+    let internalNodeMaxCells: Int
 
-    public init(filename: String) throws {
+    public init(filename: String, internalNodeMaxCells: Int? = nil) throws {
+        self.internalNodeMaxCells = internalNodeMaxCells
+            ?? (Pager.pageSize - InternalNode.headerSize) / InternalNode.cellSize
         let pager = try Pager(filename: filename)
         self.pager = pager
         if pager.numPages == 0 {
@@ -212,7 +215,7 @@ public class Table {
         let index = InternalNode.findChildIndex(parentPage, key: childMaxKey)
         let originalNumKeys = InternalNode.numKeys(parentPage)
 
-        if originalNumKeys >= UInt32(InternalNode.maxCells) {
+        if originalNumKeys >= UInt32(internalNodeMaxCells) {
             fatalError("Need to implement splitting internal node")
         }
         InternalNode.setNumKeys(&parentPage, originalNumKeys + 1)
