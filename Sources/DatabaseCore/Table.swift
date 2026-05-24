@@ -6,7 +6,8 @@ public enum ExecuteResult {
 }
 
 public class Table {
-    private(set) var rootPageNum: UInt32 = 0
+    // TODO: Will become var when root splits are implemented.
+    let rootPageNum: UInt32 = 0
     let pager: Pager
 
     public init(filename: String) throws {
