@@ -63,7 +63,6 @@ public struct REPL {
             case let .success(statement):
                 switch statement.execute(on: table) {
                 case .success: print("Executed.")
-                case .tableFull: print("Error: Table full.")
                 }
             case .failure(.syntaxError):
                 print("Syntax error. Could not parse statement.")

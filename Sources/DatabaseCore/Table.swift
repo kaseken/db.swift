@@ -2,7 +2,6 @@ import Foundation
 
 public enum ExecuteResult {
     case success
-    case tableFull
 }
 
 public class Table {
@@ -53,15 +52,18 @@ public class Table {
             print("Need to implement splitting a leaf node.")
             Foundation.exit(1)
         }
-        if cursor.cellNum < numCells {
-            var i = numCells
-            while i > cursor.cellNum {
-                let src = LeafNode.cellOffset(cellNum: Int(i) - 1)
-                let dst = LeafNode.cellOffset(cellNum: Int(i))
-                node.replaceSubrange(dst ..< dst + LeafNode.cellSize, with: node[src ..< src + LeafNode.cellSize])
-                i -= 1
-            }
-        }
+        // TODO: Implement cell shifting in Part 9+ when binary search determines the insert position.
+        // insert() currently always calls tableEnd(), so cursor.cellNum == numCells is guaranteed.
+        assert(cursor.cellNum == numCells, "Mid-node insertion not yet implemented")
+//        if cursor.cellNum < numCells {
+//            var i = numCells
+//            while i > cursor.cellNum {
+//                let src = LeafNode.cellOffset(cellNum: Int(i) - 1)
+//                let dst = LeafNode.cellOffset(cellNum: Int(i))
+//                node.replaceSubrange(dst ..< dst + LeafNode.cellSize, with: node[src ..< src + LeafNode.cellSize])
+//                i -= 1
+//            }
+//        }
         LeafNode.setNumCells(&node, numCells + 1)
         LeafNode.setKey(&node, cellNum: Int(cursor.cellNum), key: key)
         let serialized = row.serialize()
