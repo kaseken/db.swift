@@ -1,23 +1,24 @@
 public class Cursor {
     let table: Table
-    public var rowNum: UInt32
+    public var pageNum: UInt32
+    public var cellNum: UInt32
     public var endOfTable: Bool
 
-    init(table: Table, rowNum: UInt32, endOfTable: Bool) {
+    init(table: Table, pageNum: UInt32, cellNum: UInt32, endOfTable: Bool) {
         self.table = table
-        self.rowNum = rowNum
+        self.pageNum = pageNum
+        self.cellNum = cellNum
         self.endOfTable = endOfTable
     }
 
     func value() -> (pageIndex: Int, byteOffset: Int) {
-        let pageIndex = Int(rowNum) / Table.rowsPerPage
-        let rowOffset = Int(rowNum) % Table.rowsPerPage
-        return (pageIndex, rowOffset * Row.size)
+        (Int(pageNum), LeafNode.valueOffset(cellNum: Int(cellNum)))
     }
 
     func advance() {
-        rowNum += 1
-        if rowNum >= table.numRows {
+        let node = table.pager.getPage(Int(pageNum))
+        cellNum += 1
+        if cellNum >= LeafNode.numCells(node) {
             endOfTable = true
         }
     }

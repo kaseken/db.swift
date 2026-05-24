@@ -64,6 +64,27 @@ struct PagerTests {
         #expect(pager.diskFileLength == 0)
     }
 
+    @Test func `getPage zero-pads a partial page read from disk`() throws {
+        let path = makeTempPath()
+        defer { try? FileManager.default.removeItem(atPath: path) }
+
+        // Write fewer than pageSize bytes directly to the file to simulate a partial page.
+        let partialSize = 16
+        var partial = Data(count: partialSize)
+        partial[0] = 0xAB
+        FileManager.default.createFile(atPath: path, contents: partial)
+
+        let pager = try Pager(filename: path)
+        defer { pager.close() }
+        let page = pager.getPage(0)
+
+        #expect(page.count == Pager.pageSize)
+        #expect(page[0] == 0xAB)
+        // Bytes beyond the original partial data must be zero-padded.
+        #expect(page[partialSize] == 0x00)
+        #expect(page[Pager.pageSize - 1] == 0x00)
+    }
+
     @Test func `throws cannotOpenFile when file is not readable`() throws {
         let path = FileManager.default.temporaryDirectory
             .appendingPathComponent(UUID().uuidString + ".db")
