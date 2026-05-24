@@ -78,4 +78,24 @@ struct TableTests {
         }
         #expect(table.select() == rows)
     }
+
+    @Test func `non-root split inserts new child into interior of internal node`() throws {
+        // Inserts keys 15-28 first so rows 15-21 become the left child and 22-28 the right
+        // child after the root split. Then inserting keys 1-7 fills and splits the left child,
+        // producing a new sibling whose max key (21) is less than the right child's max key (28),
+        // exercising the cell-shift branch in internalNodeInsert.
+        let (table, path) = try makeTempTable()
+        defer {
+            table.close()
+            try? FileManager.default.removeItem(atPath: path)
+        }
+        let keys: [UInt32] = Array(15 ... 28) + Array(1 ... 7)
+        for key in keys {
+            table.insert(row: Row(id: key, username: "user\(key)", email: "user\(key)@example.com"))
+        }
+        let expected = (Array(1 ... 7) + Array(15 ... 28)).map { i in
+            Row(id: UInt32(i), username: "user\(i)", email: "user\(i)@example.com")
+        }
+        #expect(table.select() == expected)
+    }
 }

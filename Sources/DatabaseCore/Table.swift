@@ -215,9 +215,8 @@ public class Table {
         let index = InternalNode.findChildIndex(parentPage, key: childMaxKey)
         let originalNumKeys = InternalNode.numKeys(parentPage)
 
-        if originalNumKeys >= UInt32(internalNodeMaxCells) {
-            fatalError("Need to implement splitting internal node")
-        }
+        // TODO: Handle internal node splits (Part 14).
+        assert(originalNumKeys < UInt32(internalNodeMaxCells), "Need to implement splitting internal node")
         InternalNode.setNumKeys(&parentPage, originalNumKeys + 1)
 
         let rightChildPageNum = InternalNode.rightChild(parentPage)
