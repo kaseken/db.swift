@@ -15,7 +15,7 @@ public class Table {
         if pager.numPages == 0 {
             var rootPage = pager.getPage(0)
             rootPage = LeafNode.initialize()
-            LeafNode.setIsRoot(&rootPage, true)
+            BTreeNode.setIsRoot(&rootPage, true)
             pager.setPage(0, data: rootPage)
         }
     }
@@ -55,7 +55,7 @@ public class Table {
 
     func tableFind(key: UInt32) -> Cursor {
         let page = pager.getPage(Int(rootPageNum))
-        switch LeafNode.nodeType(page) {
+        switch BTreeNode.nodeType(page) {
         case .leaf:
             return leafNodeFind(pageNum: rootPageNum, key: key)
         case .internal:
@@ -108,7 +108,7 @@ public class Table {
         var oldPage = oldPageCopy
         let newPageNum = pager.numPages
         var newPage = LeafNode.initialize()
-        LeafNode.setIsRoot(&newPage, false)
+        BTreeNode.setIsRoot(&newPage, false)
 
         for i in stride(from: LeafNode.maxCells, through: 0, by: -1) {
             let destIsNew = i >= LeafNode.leftSplitCount
@@ -150,7 +150,7 @@ public class Table {
         _ = pager.getPage(newPageNum)
         pager.setPage(newPageNum, data: newPage)
 
-        if LeafNode.isRoot(oldPageCopy) {
+        if BTreeNode.isRoot(oldPageCopy) {
             createNewRoot(rightChildPageNum: UInt32(newPageNum))
         } else {
             fatalError("Need to implement updating parent after split")
@@ -162,10 +162,10 @@ public class Table {
         let leftChildPageNum = UInt32(pager.numPages)
         _ = pager.getPage(Int(leftChildPageNum))
         var leftChildPage = oldRoot
-        LeafNode.setIsRoot(&leftChildPage, false)
+        BTreeNode.setIsRoot(&leftChildPage, false)
 
         var newRootPage = InternalNode.initialize()
-        LeafNode.setIsRoot(&newRootPage, true)
+        BTreeNode.setIsRoot(&newRootPage, true)
         InternalNode.setNumKeys(&newRootPage, 1)
         InternalNode.setChild(&newRootPage, childNum: 0, leftChildPageNum)
         let maxLeftKey = getNodeMaxKey(leftChildPage)
@@ -192,7 +192,7 @@ public class Table {
     func printTree(pageNum: UInt32 = 0, indentation: Int = 0) {
         let page = pager.getPage(Int(pageNum))
         let indent = String(repeating: "  ", count: indentation)
-        switch LeafNode.nodeType(page) {
+        switch BTreeNode.nodeType(page) {
         case .leaf:
             let numCells = LeafNode.numCells(page)
             print("\(indent)- leaf (size \(numCells))")

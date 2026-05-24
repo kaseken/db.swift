@@ -18,7 +18,7 @@ struct BTreeNodeTests {
 
     @Test func `initialize sets node type to leaf`() {
         let page = LeafNode.initialize()
-        #expect(page[LeafNode.nodeTypeOffset] == NodeType.leaf.rawValue)
+        #expect(page[BTreeNode.nodeTypeOffset] == NodeType.leaf.rawValue)
     }
 
     @Test func `initialize sets numCells to zero`() {
@@ -97,19 +97,19 @@ struct BTreeNodeTests {
         #expect(LeafNode.key(page, cellNum: LeafNode.maxCells - 1) == 999)
     }
 
-    // MARK: - LeafNode.isRoot
+    // MARK: - BTreeNode.isRoot
 
     @Test func `isRoot defaults to false after initialize`() {
         let page = LeafNode.initialize()
-        #expect(LeafNode.isRoot(page) == false)
+        #expect(BTreeNode.isRoot(page) == false)
     }
 
     @Test func `setIsRoot round-trip`() {
         var page = LeafNode.initialize()
-        LeafNode.setIsRoot(&page, true)
-        #expect(LeafNode.isRoot(page) == true)
-        LeafNode.setIsRoot(&page, false)
-        #expect(LeafNode.isRoot(page) == false)
+        BTreeNode.setIsRoot(&page, true)
+        #expect(BTreeNode.isRoot(page) == true)
+        BTreeNode.setIsRoot(&page, false)
+        #expect(BTreeNode.isRoot(page) == false)
     }
 
     // MARK: - Split count constants
@@ -134,12 +134,12 @@ struct InternalNodeTests {
 
     @Test func `InternalNode initialize sets node type to internal`() {
         let page = InternalNode.initialize()
-        #expect(page[LeafNode.nodeTypeOffset] == NodeType.internal.rawValue)
+        #expect(page[BTreeNode.nodeTypeOffset] == NodeType.internal.rawValue)
     }
 
     @Test func `InternalNode initialize sets isRoot to false`() {
         let page = InternalNode.initialize()
-        #expect(LeafNode.isRoot(page) == false)
+        #expect(BTreeNode.isRoot(page) == false)
     }
 
     @Test func `InternalNode initialize sets numKeys to zero`() {
