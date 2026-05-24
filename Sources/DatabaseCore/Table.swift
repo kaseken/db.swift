@@ -150,11 +150,9 @@ public class Table {
         _ = pager.getPage(newPageNum)
         pager.setPage(newPageNum, data: newPage)
 
-        if BTreeNode.isRoot(oldPageCopy) {
-            createNewRoot(rightChildPageNum: UInt32(newPageNum))
-        } else {
-            fatalError("Need to implement updating parent after split")
-        }
+        // TODO: Handle non-root splits by updating the parent node (Part 11).
+        assert(BTreeNode.isRoot(oldPageCopy), "Need to implement updating parent after split")
+        createNewRoot(rightChildPageNum: UInt32(newPageNum))
     }
 
     private func createNewRoot(rightChildPageNum: UInt32) {

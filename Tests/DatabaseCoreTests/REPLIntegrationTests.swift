@@ -189,6 +189,29 @@ struct REPLIntegrationTests {
         ])
     }
 
+    @Test func `splits correctly when new cell lands in the left node`() throws {
+        // Insert 1-6 and 8-14 first, then insert 7 last.
+        // cursor.cellNum for key 7 is 6, which is < leftSplitCount (7),
+        // so the new cell is written into the left (old) page — the branch not covered by sequential inserts.
+        let db = makeTempDBPath()
+        defer { try? FileManager.default.removeItem(atPath: db) }
+        let insertsWithout7 = (1 ... 14).filter { $0 != 7 }.map { "insert \($0) user\($0) person\($0)@example.com" }
+        let result = try runScript(
+            insertsWithout7 + ["insert 7 user7 person7@example.com", ".btree", ".exit"],
+            dbFile: db,
+        )
+        #expect(Array(result.dropFirst(14)) == [
+            "db > Tree:",
+            "- internal (size 1)",
+            "  - leaf (size 7)",
+            "    - 1", "    - 2", "    - 3", "    - 4", "    - 5", "    - 6", "    - 7",
+            "  - key 7",
+            "  - leaf (size 7)",
+            "    - 8", "    - 9", "    - 10", "    - 11", "    - 12", "    - 13", "    - 14",
+            "db > ",
+        ])
+    }
+
     @Test func `prints error when inserting duplicate key`() throws {
         let db = makeTempDBPath()
         defer { try? FileManager.default.removeItem(atPath: db) }
