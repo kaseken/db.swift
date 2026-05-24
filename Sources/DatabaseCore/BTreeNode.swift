@@ -38,8 +38,9 @@ enum BTreeNode {
 ///     ┌──────────────────────────────────────┐
 ///     │ common node header (6 bytes)         │
 ///     ├──────────────────────────────────────┤
-///     │ leaf node header (4 bytes)           │
+///     │ leaf node header (8 bytes)           │
 ///     │   num_cells     (4) offset 6         │
+///     │   next_leaf     (4) offset 10        │
 ///     ├──────────────────────────────────────┤
 ///     │ cell 0  (295 bytes)                  │
 ///     │   key   (4)  ← row.id                │
@@ -55,8 +56,10 @@ enum LeafNode {
 
     // Leaf node header layout
     static let numCellsSize = 4
-    static let numCellsOffset = BTreeNode.headerSize
-    static let headerSize = BTreeNode.headerSize + numCellsSize // 10
+    static let numCellsOffset = BTreeNode.headerSize // 6
+    static let nextLeafSize = 4
+    static let nextLeafOffset = numCellsOffset + numCellsSize // 10
+    static let headerSize = BTreeNode.headerSize + numCellsSize + nextLeafSize // 14
 
     // Leaf node body layout.
     // A cell is the unit of storage in a leaf node: a key (row.id) followed by a serialized Row.
@@ -90,6 +93,19 @@ enum LeafNode {
     static func setNumCells(_ page: inout Data, _ value: UInt32) {
         withUnsafeBytes(of: value) { src in
             page.replaceSubrange(numCellsOffset ..< numCellsOffset + numCellsSize, with: src)
+        }
+    }
+
+    /// Returns the page number of the next sibling leaf node, or 0 if this is the rightmost leaf.
+    static func nextLeaf(_ page: Data) -> UInt32 {
+        page.withUnsafeBytes { ptr in
+            ptr.baseAddress!.loadUnaligned(fromByteOffset: nextLeafOffset, as: UInt32.self)
+        }
+    }
+
+    static func setNextLeaf(_ page: inout Data, _ value: UInt32) {
+        withUnsafeBytes(of: value) { src in
+            page.replaceSubrange(nextLeafOffset ..< nextLeafOffset + nextLeafSize, with: src)
         }
     }
 

@@ -6,11 +6,11 @@ struct BTreeNodeTests {
 
     @Test func `constants are correct`() {
         #expect(LeafNode.commonNodeHeaderSize == 6)
-        #expect(LeafNode.headerSize == 10)
+        #expect(LeafNode.headerSize == 14)
         #expect(LeafNode.keySize == 4)
         #expect(LeafNode.valueSize == 291)
         #expect(LeafNode.cellSize == 295)
-        #expect(LeafNode.spaceForCells == 4086)
+        #expect(LeafNode.spaceForCells == 4082)
         #expect(LeafNode.maxCells == 13)
     }
 

@@ -46,4 +46,19 @@ struct TableTests {
         table.insert(row: row2)
         #expect(table.select() == [row1, row2])
     }
+
+    @Test func `select all rows after leaf node split`() throws {
+        let (table, path) = try makeTempTable()
+        defer {
+            table.close()
+            try? FileManager.default.removeItem(atPath: path)
+        }
+        let rows: [Row] = (1 ... 15).map { i in
+            Row(id: UInt32(i), username: "user\(i)", email: "user\(i)@example.com")
+        }
+        for row in rows {
+            table.insert(row: row)
+        }
+        #expect(table.select() == rows)
+    }
 }
