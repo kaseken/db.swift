@@ -27,13 +27,12 @@ public enum Statement {
         return .failure(.unrecognized)
     }
 
-    public func execute(on table: Table) -> ExecuteResult {
+    public func execute(on table: Table) throws(ExecuteError) {
         switch self {
         case let .insert(row):
-            return table.insert(row: row)
+            try table.insert(row: row)
         case .select:
             table.select().forEach { $0.printRow() }
-            return .success
         }
     }
 }

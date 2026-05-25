@@ -61,9 +61,13 @@ public struct REPL {
 
             switch Statement.parse(line) {
             case let .success(statement):
-                switch statement.execute(on: table) {
-                case .success: print("Executed.")
-                case .duplicateKey: print("Error: Duplicate key.")
+                do {
+                    try statement.execute(on: table)
+                    print("Executed.")
+                } catch ExecuteError.duplicateKey {
+                    print("Error: Duplicate key.")
+                } catch ExecuteError.tableFull {
+                    print("Error: Table full.")
                 }
             case .failure(.syntaxError):
                 print("Syntax error. Could not parse statement.")

@@ -52,22 +52,25 @@ class BTree {
 
     // MARK: - Mutation
 
-    func insert(row: Row) -> ExecuteResult {
+    func insert(row: Row) throws(ExecuteError) {
         let cursor = find(key: row.id)
         let node = LeafNode(pager.getPage(Int(cursor.pageNum)))
         if cursor.cellNum < UInt32(node.cells.count),
            node.key(cellNum: Int(cursor.cellNum)) == row.id
         {
-            return .duplicateKey
+            throw .duplicateKey
         }
-        leafNodeInsert(cursor: cursor, key: row.id, row: row)
-        return .success
+        do {
+            try leafNodeInsert(cursor: cursor, key: row.id, row: row)
+        } catch {
+            throw .tableFull
+        }
     }
 
-    func leafNodeInsert(cursor: Cursor, key: UInt32, row: Row) {
+    func leafNodeInsert(cursor: Cursor, key: UInt32, row: Row) throws(PagerError) {
         var node = LeafNode(pager.getPage(Int(cursor.pageNum)))
         if node.cells.count >= LeafNode.maxCells {
-            leafNodeSplitAndInsert(cursor: cursor, key: key, row: row)
+            try leafNodeSplitAndInsert(cursor: cursor, key: key, row: row)
             return
         }
         node.cells.insert((key: key, value: row.serialize()), at: Int(cursor.cellNum))
@@ -133,11 +136,11 @@ class BTree {
         }
     }
 
-    private func leafNodeSplitAndInsert(cursor: Cursor, key: UInt32, row: Row) {
+    private func leafNodeSplitAndInsert(cursor: Cursor, key: UInt32, row: Row) throws(PagerError) {
         var oldNode = LeafNode(pager.getPage(Int(cursor.pageNum)))
         let oldMaxKey = getNodeMaxKey(oldNode.data)
         let oldNextLeaf = oldNode.nextLeaf
-        let newPageNum = pager.numPages
+        let newPageNum = try pager.allocatePage()
         var newNode = LeafNode.makeNew()
 
         var allCells = oldNode.cells
@@ -149,16 +152,15 @@ class BTree {
         oldNode.nextLeaf = UInt32(newPageNum)
         newNode.nextLeaf = oldNextLeaf
         pager.setPage(Int(cursor.pageNum), data: oldNode.data)
-        _ = pager.getPage(newPageNum)
         pager.setPage(newPageNum, data: newNode.data)
 
         if oldNode.isRoot {
-            createNewRoot(rightChildPageNum: UInt32(newPageNum))
+            try createNewRoot(rightChildPageNum: UInt32(newPageNum))
         } else {
             let parentPageNum = oldNode.parent
             let newMaxKey = getNodeMaxKey(oldNode.data)
             updateInternalNodeKey(pageNum: parentPageNum, oldKey: oldMaxKey, newKey: newMaxKey)
-            internalNodeInsert(parentPageNum: parentPageNum, childPageNum: UInt32(newPageNum))
+            try internalNodeInsert(parentPageNum: parentPageNum, childPageNum: UInt32(newPageNum))
         }
     }
 
@@ -172,9 +174,8 @@ class BTree {
         }
     }
 
-    private func createNewRoot(rightChildPageNum: UInt32) {
-        let leftChildPageNum = UInt32(pager.numPages)
-        _ = pager.getPage(Int(leftChildPageNum))
+    private func createNewRoot(rightChildPageNum: UInt32) throws(PagerError) {
+        let leftChildPageNum = try UInt32(pager.allocatePage())
         var leftChildPage = pager.getPage(Int(rootPageNum))
         setIsRoot(&leftChildPage, false)
         setParent(&leftChildPage, rootPageNum)
@@ -212,13 +213,13 @@ class BTree {
         pager.setPage(Int(pageNum), data: node.data)
     }
 
-    private func internalNodeInsert(parentPageNum: UInt32, childPageNum: UInt32) {
+    private func internalNodeInsert(parentPageNum: UInt32, childPageNum: UInt32) throws(PagerError) {
         var parent = InternalNode(pager.getPage(Int(parentPageNum)))
         let childMaxKey = getNodeMaxKey(pager.getPage(Int(childPageNum)))
         let index = parent.findChildIndex(key: childMaxKey)
 
         if parent.cells.count >= internalNodeMaxCells {
-            internalNodeSplitAndInsert(parentPageNum: parentPageNum, childPageNum: childPageNum)
+            try internalNodeSplitAndInsert(parentPageNum: parentPageNum, childPageNum: childPageNum)
             return
         }
 
@@ -239,11 +240,11 @@ class BTree {
         pager.setPage(Int(parentPageNum), data: parent.data)
     }
 
-    private func internalNodeSplitAndInsert(parentPageNum: UInt32, childPageNum: UInt32) {
+    private func internalNodeSplitAndInsert(parentPageNum: UInt32, childPageNum: UInt32) throws(PagerError) {
         let oldPage = pager.getPage(Int(parentPageNum))
         let oldMax = getNodeMaxKey(oldPage)
         let childMax = getNodeMaxKey(pager.getPage(Int(childPageNum)))
-        let newPageNum = pager.numPages
+        let newPageNum = try pager.allocatePage()
 
         let oldNode = InternalNode(oldPage)
         let splittingRoot = oldNode.isRoot
@@ -252,9 +253,8 @@ class BTree {
 
         if splittingRoot {
             let newNode = InternalNode.makeNew()
-            _ = pager.getPage(newPageNum)
             pager.setPage(newPageNum, data: newNode.data)
-            createNewRoot(rightChildPageNum: UInt32(newPageNum))
+            try createNewRoot(rightChildPageNum: UInt32(newPageNum))
             let rootNode = InternalNode(pager.getPage(Int(rootPageNum)))
             actualOldPageNum = rootNode.child(childNum: 0)
             grandparentPageNum = rootPageNum
@@ -262,14 +262,13 @@ class BTree {
             actualOldPageNum = parentPageNum
             grandparentPageNum = oldNode.parent
             let newNode = InternalNode.makeNew()
-            _ = pager.getPage(newPageNum)
             pager.setPage(newPageNum, data: newNode.data)
         }
 
         // Move old node's rightChild into new node
         var actualOldNode = InternalNode(pager.getPage(Int(actualOldPageNum)))
         let rightChildPageNum = actualOldNode.rightChild
-        internalNodeInsert(parentPageNum: UInt32(newPageNum), childPageNum: rightChildPageNum)
+        try internalNodeInsert(parentPageNum: UInt32(newPageNum), childPageNum: rightChildPageNum)
         var rightChildPage = pager.getPage(Int(rightChildPageNum))
         setParent(&rightChildPage, UInt32(newPageNum))
         pager.setPage(Int(rightChildPageNum), data: rightChildPage)
@@ -283,7 +282,7 @@ class BTree {
         for i in stride(from: internalNodeMaxCells - 1, through: internalNodeMaxCells / 2 + 1, by: -1) {
             actualOldNode = InternalNode(pager.getPage(Int(actualOldPageNum)))
             let childToMovePageNum = actualOldNode.cells[i].child
-            internalNodeInsert(parentPageNum: UInt32(newPageNum), childPageNum: childToMovePageNum)
+            try internalNodeInsert(parentPageNum: UInt32(newPageNum), childPageNum: childToMovePageNum)
             var childToMovePage = pager.getPage(Int(childToMovePageNum))
             setParent(&childToMovePage, UInt32(newPageNum))
             pager.setPage(Int(childToMovePageNum), data: childToMovePage)
@@ -303,7 +302,7 @@ class BTree {
         // Insert new child into whichever node its key belongs to
         let maxAfterSplit = getNodeMaxKey(pager.getPage(Int(actualOldPageNum)))
         let destPageNum = childMax < maxAfterSplit ? actualOldPageNum : UInt32(newPageNum)
-        internalNodeInsert(parentPageNum: destPageNum, childPageNum: childPageNum)
+        try internalNodeInsert(parentPageNum: destPageNum, childPageNum: childPageNum)
         var childPageData = pager.getPage(Int(childPageNum))
         setParent(&childPageData, destPageNum)
         pager.setPage(Int(childPageNum), data: childPageData)
@@ -314,7 +313,7 @@ class BTree {
 
         // If not root split, insert new node into grandparent
         if !splittingRoot {
-            internalNodeInsert(parentPageNum: grandparentPageNum, childPageNum: UInt32(newPageNum))
+            try internalNodeInsert(parentPageNum: grandparentPageNum, childPageNum: UInt32(newPageNum))
             var newPageData = pager.getPage(newPageNum)
             setParent(&newPageData, grandparentPageNum)
             pager.setPage(newPageNum, data: newPageData)

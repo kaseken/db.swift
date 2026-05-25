@@ -23,7 +23,7 @@ struct BTreeTests {
             Row(id: UInt32(i), username: "user\(i)", email: "user\(i)@example.com")
         }
         for row in rows {
-            btree.insert(row: row)
+            try btree.insert(row: row)
         }
         #expect(Array(btree.rows) == rows)
     }
@@ -37,7 +37,7 @@ struct BTreeTests {
             Row(id: UInt32(i), username: "user\(i)", email: "user\(i)@example.com")
         }
         for row in rows {
-            btree.insert(row: row)
+            try btree.insert(row: row)
         }
         #expect(Array(btree.rows) == rows)
     }
@@ -49,7 +49,7 @@ struct BTreeTests {
             Row(id: UInt32(i), username: "user\(i)", email: "user\(i)@example.com")
         }
         for row in rows {
-            btree.insert(row: row)
+            try btree.insert(row: row)
         }
         #expect(Array(btree.rows) == rows)
     }
@@ -63,7 +63,7 @@ struct BTreeTests {
             Row(id: UInt32(i), username: "user\(i)", email: "user\(i)@example.com")
         }
         for row in rows {
-            btree.insert(row: row)
+            try btree.insert(row: row)
         }
         #expect(Array(btree.rows) == rows)
     }
@@ -77,7 +77,7 @@ struct BTreeTests {
             Row(id: UInt32(i), username: "user\(i)", email: "user\(i)@example.com")
         }
         for row in rows {
-            btree.insert(row: row)
+            try btree.insert(row: row)
         }
         #expect(Array(btree.rows) == rows)
     }
@@ -101,11 +101,28 @@ struct BTreeTests {
         let phase2: [UInt32] = [1210, 1220, 1230, 1240, 1250, 1260, 1270]
         let phase3: [UInt32] = [2, 3, 4, 5, 6, 7, 8]
         for key in phase1 + phase2 + phase3 {
-            btree.insert(row: Row(id: key, username: "u\(key)", email: "\(key)@e.com"))
+            try btree.insert(row: Row(id: key, username: "u\(key)", email: "\(key)@e.com"))
         }
         let allKeys = (phase1 + phase2 + phase3).sorted()
         let expected = allKeys.map { i in Row(id: i, username: "u\(i)", email: "\(i)@e.com") }
         #expect(Array(btree.rows) == expected)
+    }
+
+    @Test func `insert throws tableFull when page limit is reached`() throws {
+        let (btree, path) = try makeTempBTree(internalNodeMaxCells: 3)
+        defer { btree.close(); try? FileManager.default.removeItem(atPath: path) }
+        // With internalNodeMaxCells=3 each leaf holds 13 rows; 100 pages supports ~350 rows.
+        // Insert until tableFull is thrown.
+        var threw = false
+        for i: UInt32 in 1 ... 500 {
+            do {
+                try btree.insert(row: Row(id: i, username: "u\(i)", email: "\(i)@e.com"))
+            } catch ExecuteError.tableFull {
+                threw = true
+                break
+            }
+        }
+        #expect(threw)
     }
 
     @Test func `non-root split inserts new child into interior of internal node`() throws {
@@ -117,7 +134,7 @@ struct BTreeTests {
         defer { btree.close(); try? FileManager.default.removeItem(atPath: path) }
         let keys: [UInt32] = Array(15 ... 28) + Array(1 ... 7)
         for key in keys {
-            btree.insert(row: Row(id: key, username: "user\(key)", email: "user\(key)@example.com"))
+            try btree.insert(row: Row(id: key, username: "user\(key)", email: "user\(key)@example.com"))
         }
         let expected = (Array(1 ... 7) + Array(15 ... 28)).map { i in
             Row(id: UInt32(i), username: "user\(i)", email: "user\(i)@example.com")

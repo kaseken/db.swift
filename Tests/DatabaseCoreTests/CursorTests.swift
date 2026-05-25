@@ -28,7 +28,7 @@ struct CursorTests {
             table.close()
             try? FileManager.default.removeItem(atPath: path)
         }
-        table.insert(row: Row(id: 1, username: "a", email: "a@example.com"))
+        try table.insert(row: Row(id: 1, username: "a", email: "a@example.com"))
         let cursor = table.btree.start()
         #expect(cursor.cellNum == 0)
         #expect(cursor.endOfTable == false)
@@ -40,8 +40,8 @@ struct CursorTests {
             table.close()
             try? FileManager.default.removeItem(atPath: path)
         }
-        table.insert(row: Row(id: 1, username: "a", email: "a@example.com"))
-        table.insert(row: Row(id: 2, username: "b", email: "b@example.com"))
+        try table.insert(row: Row(id: 1, username: "a", email: "a@example.com"))
+        try table.insert(row: Row(id: 2, username: "b", email: "b@example.com"))
         let cursor = table.btree.find(key: 1)
         #expect(cursor.cellNum == 0)
         #expect(cursor.endOfTable == false)
@@ -53,8 +53,8 @@ struct CursorTests {
             table.close()
             try? FileManager.default.removeItem(atPath: path)
         }
-        table.insert(row: Row(id: 1, username: "a", email: "a@example.com"))
-        table.insert(row: Row(id: 2, username: "b", email: "b@example.com"))
+        try table.insert(row: Row(id: 1, username: "a", email: "a@example.com"))
+        try table.insert(row: Row(id: 2, username: "b", email: "b@example.com"))
         let cursor = table.btree.find(key: 3)
         #expect(cursor.cellNum == 2)
         #expect(cursor.endOfTable == true)
@@ -67,8 +67,8 @@ struct CursorTests {
             try? FileManager.default.removeItem(atPath: path)
         }
         let expected = Row(id: 1, username: "alice", email: "alice@example.com")
-        table.insert(row: expected)
-        table.insert(row: Row(id: 2, username: "bob", email: "bob@example.com"))
+        try table.insert(row: expected)
+        try table.insert(row: Row(id: 2, username: "bob", email: "bob@example.com"))
         var cursor = table.btree.start()
         #expect(cursor.next() == expected)
     }
@@ -79,8 +79,8 @@ struct CursorTests {
             table.close()
             try? FileManager.default.removeItem(atPath: path)
         }
-        table.insert(row: Row(id: 1, username: "a", email: "a@example.com"))
-        table.insert(row: Row(id: 2, username: "b", email: "b@example.com"))
+        try table.insert(row: Row(id: 1, username: "a", email: "a@example.com"))
+        try table.insert(row: Row(id: 2, username: "b", email: "b@example.com"))
         var cursor = table.btree.start()
         #expect(cursor.cellNum == 0)
         cursor.advance()
@@ -97,7 +97,7 @@ struct CursorTests {
         // Insert 14 rows to trigger a leaf split; root becomes an internal node.
         // Left leaf: keys 1-7, right leaf: keys 8-14.
         for i: UInt32 in 1 ... 14 {
-            table.insert(row: Row(id: i, username: "u\(i)", email: "u\(i)@example.com"))
+            try table.insert(row: Row(id: i, username: "u\(i)", email: "u\(i)@example.com"))
         }
         // Key 10 lives in the right leaf (page 1, cell 2).
         let cursor = table.btree.find(key: 10)
@@ -113,7 +113,7 @@ struct CursorTests {
             try? FileManager.default.removeItem(atPath: path)
         }
         for i: UInt32 in 1 ... 14 {
-            table.insert(row: Row(id: i, username: "u\(i)", email: "u\(i)@example.com"))
+            try table.insert(row: Row(id: i, username: "u\(i)", email: "u\(i)@example.com"))
         }
         // Key 3 lives in the left leaf.
         let cursor = table.btree.find(key: 3)
@@ -129,7 +129,7 @@ struct CursorTests {
             try? FileManager.default.removeItem(atPath: path)
         }
         for i: UInt32 in 1 ... 14 {
-            table.insert(row: Row(id: i, username: "u\(i)", email: "u\(i)@example.com"))
+            try table.insert(row: Row(id: i, username: "u\(i)", email: "u\(i)@example.com"))
         }
         // Key 15 does not exist; cursor should point to the insertion position at end of right leaf.
         let cursor = table.btree.find(key: 15)
@@ -202,7 +202,7 @@ struct CursorTests {
             table.close()
             try? FileManager.default.removeItem(atPath: path)
         }
-        table.insert(row: Row(id: 1, username: "a", email: "a@example.com"))
+        try table.insert(row: Row(id: 1, username: "a", email: "a@example.com"))
         var cursor = table.btree.start()
         cursor.advance()
         #expect(cursor.endOfTable == true)

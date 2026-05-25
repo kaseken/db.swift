@@ -1,8 +1,8 @@
 import Foundation
 
-public enum ExecuteResult {
-    case success
+public enum ExecuteError: Error {
     case duplicateKey
+    case tableFull
 }
 
 public class Table {
@@ -17,9 +17,8 @@ public class Table {
         btree.close()
     }
 
-    @discardableResult
-    public func insert(row: Row) -> ExecuteResult {
-        btree.insert(row: row)
+    public func insert(row: Row) throws(ExecuteError) {
+        try btree.insert(row: row)
     }
 
     public func select() -> [Row] {

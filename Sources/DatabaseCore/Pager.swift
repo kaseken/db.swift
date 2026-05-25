@@ -2,6 +2,7 @@ import Foundation
 
 enum PagerError: Error {
     case cannotOpenFile(String)
+    case tableFull
 }
 
 class Pager {
@@ -62,6 +63,14 @@ class Pager {
 
     func setPage(_ pageNum: Int, data: Data) {
         pages[pageNum] = data
+    }
+
+    func allocatePage() throws(PagerError) -> Int {
+        guard numPages < Pager.maxPages else { throw .tableFull }
+        let pageNum = numPages
+        numPages += 1
+        pages[pageNum] = Data(count: Pager.pageSize)
+        return pageNum
     }
 
     func flushAll() {
