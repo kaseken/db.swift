@@ -265,6 +265,14 @@ struct REPLIntegrationTests {
         ])
     }
 
+    @Test func `prints error message when table is full`() throws {
+        let db = makeTempDBPath()
+        defer { try? FileManager.default.removeItem(atPath: db) }
+        let inserts = (1 ... 1500).map { "insert \($0) user\($0) person\($0)@example.com" }
+        let result = try runScript(inserts + [".exit"], dbFile: db)
+        #expect(result.contains("db > Error: Table full."))
+    }
+
     @Test func `persists data across sessions`() throws {
         let db = makeTempDBPath()
         defer { try? FileManager.default.removeItem(atPath: db) }

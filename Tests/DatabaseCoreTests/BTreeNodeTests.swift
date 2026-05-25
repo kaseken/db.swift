@@ -1,4 +1,5 @@
 @testable import DatabaseCore
+import Foundation
 import Testing
 
 struct BTreeNodeTests {
@@ -14,102 +15,125 @@ struct BTreeNodeTests {
         #expect(LeafNode.maxCells == 13)
     }
 
-    // MARK: - initialize
+    // MARK: - makeNew
 
-    @Test func `initialize sets node type to leaf`() {
-        let page = LeafNode.initialize()
-        #expect(page[BTreeNode.nodeTypeOffset] == NodeType.leaf.rawValue)
+    @Test func `makeNew sets node type to leaf`() {
+        let node = LeafNode.makeNew()
+        #expect(node.nodeType == .leaf)
     }
 
-    @Test func `initialize sets numCells to zero`() {
-        let page = LeafNode.initialize()
-        #expect(LeafNode.numCells(page) == 0)
+    @Test func `makeNew returns empty cells`() {
+        let node = LeafNode.makeNew()
+        #expect(node.cells.isEmpty)
     }
 
-    @Test func `initialize returns a full page`() {
-        let page = LeafNode.initialize()
-        #expect(page.count == Pager.pageSize)
+    @Test func `makeNew returns a full page`() {
+        let node = LeafNode.makeNew()
+        #expect(node.data.count == Pager.pageSize)
     }
 
-    // MARK: - numCells / setNumCells
+    // MARK: - cells
 
-    @Test func `setNumCells and numCells round-trip`() {
-        var page = LeafNode.initialize()
-        LeafNode.setNumCells(&page, 7)
-        #expect(LeafNode.numCells(page) == 7)
-    }
-
-    @Test func `setNumCells to max`() {
-        var page = LeafNode.initialize()
-        LeafNode.setNumCells(&page, UInt32(LeafNode.maxCells))
-        #expect(LeafNode.numCells(page) == UInt32(LeafNode.maxCells))
+    @Test func `cells count reflects appended cells`() {
+        var node = LeafNode.makeNew()
+        #expect(node.cells.count == 0)
+        for i: UInt32 in 1 ... 7 {
+            node.cells.append((key: i, value: Data(count: Row.size)))
+        }
+        #expect(node.cells.count == 7)
     }
 
     // MARK: - Offsets
 
     @Test func `cellOffset for cell 0 starts after header`() {
-        #expect(LeafNode.cellOffset(cellNum: 0) == LeafNode.headerSize)
+        #expect(LeafNode.cellOffset(at: 0) == LeafNode.headerSize)
     }
 
     @Test func `cellOffset increments by cellSize`() {
-        #expect(LeafNode.cellOffset(cellNum: 1) == LeafNode.headerSize + LeafNode.cellSize)
-        #expect(LeafNode.cellOffset(cellNum: 2) == LeafNode.headerSize + 2 * LeafNode.cellSize)
+        #expect(LeafNode.cellOffset(at: 1) == LeafNode.headerSize + LeafNode.cellSize)
+        #expect(LeafNode.cellOffset(at: 2) == LeafNode.headerSize + 2 * LeafNode.cellSize)
     }
 
     @Test func `keyOffset equals cellOffset`() {
         for i in 0 ..< LeafNode.maxCells {
-            #expect(LeafNode.keyOffset(cellNum: i) == LeafNode.cellOffset(cellNum: i))
+            #expect(LeafNode.keyOffset(at: i) == LeafNode.cellOffset(at: i))
         }
     }
 
     @Test func `valueOffset is keyOffset plus keySize`() {
         for i in 0 ..< LeafNode.maxCells {
-            #expect(LeafNode.valueOffset(cellNum: i) == LeafNode.keyOffset(cellNum: i) + LeafNode.keySize)
+            #expect(LeafNode.valueOffset(at: i) == LeafNode.keyOffset(at: i) + LeafNode.keySize)
         }
     }
 
     @Test func `last cell fits within page`() {
-        let lastCellEnd = LeafNode.cellOffset(cellNum: LeafNode.maxCells - 1) + LeafNode.cellSize
+        let lastCellEnd = LeafNode.cellOffset(at: LeafNode.maxCells - 1) + LeafNode.cellSize
         #expect(lastCellEnd <= Pager.pageSize)
     }
 
     // MARK: - key / setKey
 
-    @Test func `setKey and key round-trip`() {
-        var page = LeafNode.initialize()
-        LeafNode.setKey(&page, cellNum: 0, key: 42)
-        #expect(LeafNode.key(page, cellNum: 0) == 42)
+    @Test func `key round-trip`() {
+        var node = LeafNode.makeNew()
+        node.cells.append((key: 42, value: Data(count: Row.size)))
+        #expect(node.key(at: 0) == 42)
+        node.setKey(at: 0, 99)
+        #expect(node.key(at: 0) == 99)
     }
 
     @Test func `setKey does not affect other cells`() {
-        var page = LeafNode.initialize()
-        LeafNode.setKey(&page, cellNum: 0, key: 1)
-        LeafNode.setKey(&page, cellNum: 1, key: 2)
-        LeafNode.setKey(&page, cellNum: 2, key: 3)
-        #expect(LeafNode.key(page, cellNum: 0) == 1)
-        #expect(LeafNode.key(page, cellNum: 1) == 2)
-        #expect(LeafNode.key(page, cellNum: 2) == 3)
+        var node = LeafNode.makeNew()
+        for _ in 0 ..< 3 {
+            node.cells.append((key: 0, value: Data(count: Row.size)))
+        }
+        node.setKey(at: 0, 1)
+        node.setKey(at: 1, 2)
+        node.setKey(at: 2, 3)
+        #expect(node.key(at: 0) == 1)
+        #expect(node.key(at: 1) == 2)
+        #expect(node.key(at: 2) == 3)
     }
 
     @Test func `setKey on last cell`() {
-        var page = LeafNode.initialize()
-        LeafNode.setKey(&page, cellNum: LeafNode.maxCells - 1, key: 999)
-        #expect(LeafNode.key(page, cellNum: LeafNode.maxCells - 1) == 999)
+        var node = LeafNode.makeNew()
+        for i: UInt32 in 0 ..< UInt32(LeafNode.maxCells) {
+            node.cells.append((key: i, value: Data(count: Row.size)))
+        }
+        node.setKey(at: LeafNode.maxCells - 1, 999)
+        #expect(node.key(at: LeafNode.maxCells - 1) == 999)
     }
 
-    // MARK: - BTreeNode.isRoot
+    // MARK: - isRoot
 
-    @Test func `isRoot defaults to false after initialize`() {
-        let page = LeafNode.initialize()
-        #expect(BTreeNode.isRoot(page) == false)
+    @Test func `isRoot defaults to false after makeNew`() {
+        let node = LeafNode.makeNew()
+        #expect(node.isRoot == false)
     }
 
-    @Test func `setIsRoot round-trip`() {
-        var page = LeafNode.initialize()
-        BTreeNode.setIsRoot(&page, true)
-        #expect(BTreeNode.isRoot(page) == true)
-        BTreeNode.setIsRoot(&page, false)
-        #expect(BTreeNode.isRoot(page) == false)
+    @Test func `isRoot round-trip`() {
+        var node = LeafNode.makeNew()
+        node.isRoot = true
+        #expect(node.isRoot == true)
+        node.isRoot = false
+        #expect(node.isRoot == false)
+    }
+
+    // MARK: - Serialization round-trip
+
+    @Test func `data round-trip preserves cells`() {
+        var node = LeafNode.makeNew()
+        node.isRoot = true
+        node.cells = [
+            (key: 10, value: Data(repeating: 0xAB, count: Row.size)),
+            (key: 20, value: Data(repeating: 0xCD, count: Row.size)),
+        ]
+        node.nextLeafPageNum = 7
+        let restored = LeafNode(node.data)
+        #expect(restored.isRoot == true)
+        #expect(restored.nextLeafPageNum == 7)
+        #expect(restored.cells.count == 2)
+        #expect(restored.cells[0].key == 10)
+        #expect(restored.cells[1].key == 20)
     }
 
     // MARK: - Split count constants
@@ -125,99 +149,105 @@ struct InternalNodeTests {
 
     @Test func `InternalNode constants are correct`() {
         #expect(InternalNode.numKeysOffset == 6)
-        #expect(InternalNode.rightChildOffset == 10)
+        #expect(InternalNode.rightmostChildPageNumOffset == 10)
         #expect(InternalNode.headerSize == 14)
         #expect(InternalNode.cellSize == 8)
     }
 
-    // MARK: - initialize
+    // MARK: - makeNew
 
-    @Test func `InternalNode initialize sets node type to internal`() {
-        let page = InternalNode.initialize()
-        #expect(page[BTreeNode.nodeTypeOffset] == NodeType.internal.rawValue)
+    @Test func `InternalNode makeNew sets node type to internal`() {
+        let node = InternalNode.makeNew()
+        #expect(node.nodeType == .internal)
     }
 
-    @Test func `InternalNode initialize sets isRoot to false`() {
-        let page = InternalNode.initialize()
-        #expect(BTreeNode.isRoot(page) == false)
+    @Test func `InternalNode makeNew sets isRoot to false`() {
+        let node = InternalNode.makeNew()
+        #expect(node.isRoot == false)
     }
 
-    @Test func `InternalNode initialize sets numKeys to zero`() {
-        let page = InternalNode.initialize()
-        #expect(InternalNode.numKeys(page) == 0)
+    @Test func `InternalNode makeNew returns empty cells`() {
+        let node = InternalNode.makeNew()
+        #expect(node.cells.isEmpty)
     }
 
-    @Test func `InternalNode initialize returns a full page`() {
-        let page = InternalNode.initialize()
-        #expect(page.count == Pager.pageSize)
+    @Test func `InternalNode makeNew returns a full page`() {
+        let node = InternalNode.makeNew()
+        #expect(node.data.count == Pager.pageSize)
     }
 
-    // MARK: - numKeys / setNumKeys
+    // MARK: - cells count
 
-    @Test func `InternalNode setNumKeys and numKeys round-trip`() {
-        var page = InternalNode.initialize()
-        InternalNode.setNumKeys(&page, 5)
-        #expect(InternalNode.numKeys(page) == 5)
+    @Test func `InternalNode cells count reflects appended cells`() {
+        var node = InternalNode.makeNew()
+        #expect(node.cells.count == 0)
+        node.cells.append((child: 1, key: 100))
+        node.cells.append((child: 2, key: 200))
+        #expect(node.cells.count == 2)
     }
 
-    // MARK: - rightChild / setRightChild
+    // MARK: - rightmostChildPageNum
 
-    @Test func `InternalNode setRightChild and rightChild round-trip`() {
-        var page = InternalNode.initialize()
-        InternalNode.setRightChild(&page, 42)
-        #expect(InternalNode.rightChild(page) == 42)
+    @Test func `InternalNode rightmostChildPageNum round-trip`() {
+        var node = InternalNode.makeNew()
+        node.rightmostChildPageNum = 42
+        #expect(node.rightmostChildPageNum == 42)
     }
 
     // MARK: - key / setKey
 
-    @Test func `InternalNode setKey and key round-trip`() {
-        var page = InternalNode.initialize()
-        InternalNode.setNumKeys(&page, 3)
-        InternalNode.setKey(&page, keyNum: 0, 100)
-        InternalNode.setKey(&page, keyNum: 1, 200)
-        InternalNode.setKey(&page, keyNum: 2, 300)
-        #expect(InternalNode.key(page, keyNum: 0) == 100)
-        #expect(InternalNode.key(page, keyNum: 1) == 200)
-        #expect(InternalNode.key(page, keyNum: 2) == 300)
+    @Test func `InternalNode key round-trip`() {
+        var node = InternalNode.makeNew()
+        node.cells = [(child: 0, key: 100), (child: 0, key: 200), (child: 0, key: 300)]
+        #expect(node.key(at: 0) == 100)
+        #expect(node.key(at: 1) == 200)
+        #expect(node.key(at: 2) == 300)
+        node.setKey(at: 1, 250)
+        #expect(node.key(at: 1) == 250)
     }
 
     // MARK: - child / setChild
 
-    @Test func `InternalNode setChild and child round-trip for internal cells`() {
-        var page = InternalNode.initialize()
-        InternalNode.setNumKeys(&page, 2)
-        InternalNode.setChild(&page, childNum: 0, 10)
-        InternalNode.setChild(&page, childNum: 1, 20)
-        #expect(InternalNode.child(page, childNum: 0) == 10)
-        #expect(InternalNode.child(page, childNum: 1) == 20)
+    @Test func `InternalNode child round-trip for internal cells`() {
+        var node = InternalNode.makeNew()
+        node.cells = [(child: 10, key: 0), (child: 20, key: 0)]
+        #expect(node.childPageNum(at: 0) == 10)
+        #expect(node.childPageNum(at: 1) == 20)
     }
 
-    @Test func `InternalNode setChild with childNum == numKeys sets rightChild`() {
-        var page = InternalNode.initialize()
-        InternalNode.setNumKeys(&page, 1)
-        InternalNode.setChild(&page, childNum: 1, 99)
-        #expect(InternalNode.rightChild(page) == 99)
-        #expect(InternalNode.child(page, childNum: 1) == 99)
+    // MARK: - Serialization round-trip
+
+    @Test func `InternalNode data round-trip preserves cells`() {
+        var node = InternalNode.makeNew()
+        node.isRoot = true
+        node.cells = [(child: 3, key: 50), (child: 4, key: 100)]
+        node.rightmostChildPageNum = 5
+        let restored = InternalNode(node.data)
+        #expect(restored.isRoot == true)
+        #expect(restored.cells.count == 2)
+        #expect(restored.cells[0].child == 3)
+        #expect(restored.cells[0].key == 50)
+        #expect(restored.cells[1].key == 100)
+        #expect(restored.rightmostChildPageNum == 5)
     }
 }
 
-// MARK: - getNodeMaxKey
+// MARK: - maxKey
 
-struct GetNodeMaxKeyTests {
-    @Test func `getNodeMaxKey on leaf page`() {
-        var page = LeafNode.initialize()
-        LeafNode.setNumCells(&page, 3)
-        LeafNode.setKey(&page, cellNum: 0, key: 10)
-        LeafNode.setKey(&page, cellNum: 1, key: 20)
-        LeafNode.setKey(&page, cellNum: 2, key: 30)
-        #expect(getNodeMaxKey(page) == 30)
+struct NodeMaxKeyTests {
+    @Test func `maxKey on leaf`() {
+        var node = LeafNode.makeNew()
+        node.cells = [
+            (key: 10, value: Data(count: Row.size)),
+            (key: 20, value: Data(count: Row.size)),
+            (key: 30, value: Data(count: Row.size)),
+        ]
+        #expect(node.maxKey == 30)
     }
 
-    @Test func `getNodeMaxKey on internal page`() {
-        var page = InternalNode.initialize()
-        InternalNode.setNumKeys(&page, 2)
-        InternalNode.setKey(&page, keyNum: 0, 50)
-        InternalNode.setKey(&page, keyNum: 1, 100)
-        #expect(getNodeMaxKey(page) == 100)
+    @Test func `maxKey on internal`() {
+        var node = InternalNode.makeNew()
+        node.cells = [(child: 0, key: 50), (child: 0, key: 100)]
+        #expect(node.maxKey == 100)
     }
 }

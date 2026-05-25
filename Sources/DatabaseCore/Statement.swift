@@ -1,4 +1,4 @@
-public enum PrepareError: Error {
+public enum ParseError: Error {
     case syntaxError
     case unrecognized
     case negativeId
@@ -9,7 +9,7 @@ public enum Statement {
     case insert(Row)
     case select
 
-    public static func prepare(_ input: String) -> Result<Statement, PrepareError> {
+    public static func parse(_ input: String) -> Result<Statement, ParseError> {
         if input.hasPrefix("insert") {
             let parts = input.split(separator: " ", maxSplits: 3, omittingEmptySubsequences: true)
             guard parts.count == 4, let idInt = Int(parts[1]) else {
@@ -27,13 +27,12 @@ public enum Statement {
         return .failure(.unrecognized)
     }
 
-    public func execute(on table: Table) -> ExecuteResult {
+    public func execute(on table: Table) throws(ExecuteError) {
         switch self {
         case let .insert(row):
-            return table.insert(row: row)
+            try table.insert(row: row)
         case .select:
             table.select().forEach { $0.printRow() }
-            return .success
         }
     }
 }

@@ -31,7 +31,7 @@ enum MetaCommand: Equatable {
             return false
         case .btree:
             print("Tree:")
-            table.printTree()
+            table.btree.printTree()
             return false
         case let .unrecognized(cmd):
             print("Unrecognized command '\(cmd)'.")
@@ -59,11 +59,15 @@ public struct REPL {
                 continue
             }
 
-            switch Statement.prepare(line) {
+            switch Statement.parse(line) {
             case let .success(statement):
-                switch statement.execute(on: table) {
-                case .success: print("Executed.")
-                case .duplicateKey: print("Error: Duplicate key.")
+                do {
+                    try statement.execute(on: table)
+                    print("Executed.")
+                } catch ExecuteError.duplicateKey {
+                    print("Error: Duplicate key.")
+                } catch ExecuteError.tableFull {
+                    print("Error: Table full.")
                 }
             case .failure(.syntaxError):
                 print("Syntax error. Could not parse statement.")
