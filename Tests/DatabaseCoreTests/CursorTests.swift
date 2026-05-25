@@ -105,8 +105,8 @@ struct CursorTests {
         // Key 10 lives in the right leaf (page 1, cell 2).
         let cursor = table.tableFind(key: 10)
         let page = table.pager.getPage(Int(cursor.pageNum))
-        #expect(BTreeNode.nodeType(page) == .leaf)
-        #expect(LeafNode.key(page, cellNum: Int(cursor.cellNum)) == 10)
+        #expect(nodeType(page) == .leaf)
+        #expect(LeafNode(page).key(cellNum: Int(cursor.cellNum)) == 10)
     }
 
     @Test func `tableFind locates existing key in left leaf after split`() throws {
@@ -121,8 +121,8 @@ struct CursorTests {
         // Key 3 lives in the left leaf.
         let cursor = table.tableFind(key: 3)
         let page = table.pager.getPage(Int(cursor.pageNum))
-        #expect(BTreeNode.nodeType(page) == .leaf)
-        #expect(LeafNode.key(page, cellNum: Int(cursor.cellNum)) == 3)
+        #expect(nodeType(page) == .leaf)
+        #expect(LeafNode(page).key(cellNum: Int(cursor.cellNum)) == 3)
     }
 
     @Test func `tableFind returns insertion point for non-existing key in multi-level tree`() throws {
@@ -137,7 +137,7 @@ struct CursorTests {
         // Key 15 does not exist; cursor should point to the insertion position at end of right leaf.
         let cursor = table.tableFind(key: 15)
         let page = table.pager.getPage(Int(cursor.pageNum))
-        #expect(BTreeNode.nodeType(page) == .leaf)
+        #expect(nodeType(page) == .leaf)
         #expect(cursor.endOfTable == true)
     }
 
@@ -158,55 +158,55 @@ struct CursorTests {
             try? FileManager.default.removeItem(atPath: path)
         }
 
-        var root = InternalNode.initialize()
-        BTreeNode.setIsRoot(&root, true)
-        InternalNode.setNumKeys(&root, 1)
-        InternalNode.setChild(&root, childNum: 0, 1)
-        InternalNode.setKey(&root, keyNum: 0, 7)
-        InternalNode.setRightChild(&root, 2)
-        table.pager.setPage(0, data: root)
+        var root = InternalNode.makeNew()
+        root.isRoot = true
+        root.numKeys = 1
+        root.setChild(childNum: 0, 1)
+        root.setKey(keyNum: 0, 7)
+        root.rightChild = 2
+        table.pager.setPage(0, data: root.data)
 
-        var leftInternal = InternalNode.initialize()
-        InternalNode.setNumKeys(&leftInternal, 1)
-        InternalNode.setChild(&leftInternal, childNum: 0, 3)
-        InternalNode.setKey(&leftInternal, keyNum: 0, 3)
-        InternalNode.setRightChild(&leftInternal, 4)
-        table.pager.setPage(1, data: leftInternal)
+        var leftInternal = InternalNode.makeNew()
+        leftInternal.numKeys = 1
+        leftInternal.setChild(childNum: 0, 3)
+        leftInternal.setKey(keyNum: 0, 3)
+        leftInternal.rightChild = 4
+        table.pager.setPage(1, data: leftInternal.data)
 
-        var rightInternal = InternalNode.initialize()
-        InternalNode.setNumKeys(&rightInternal, 1)
-        InternalNode.setChild(&rightInternal, childNum: 0, 5)
-        InternalNode.setKey(&rightInternal, keyNum: 0, 10)
-        InternalNode.setRightChild(&rightInternal, 6)
-        table.pager.setPage(2, data: rightInternal)
+        var rightInternal = InternalNode.makeNew()
+        rightInternal.numKeys = 1
+        rightInternal.setChild(childNum: 0, 5)
+        rightInternal.setKey(keyNum: 0, 10)
+        rightInternal.rightChild = 6
+        table.pager.setPage(2, data: rightInternal.data)
 
-        var leaf3 = LeafNode.initialize()
-        LeafNode.setNumCells(&leaf3, 3)
+        var leaf3 = LeafNode.makeNew()
+        leaf3.numCells = 3
         for (i, k) in [1, 2, 3].enumerated() {
-            LeafNode.setKey(&leaf3, cellNum: i, key: UInt32(k))
+            leaf3.setKey(cellNum: i, key: UInt32(k))
         }
-        table.pager.setPage(3, data: leaf3)
+        table.pager.setPage(3, data: leaf3.data)
 
-        var leaf4 = LeafNode.initialize()
-        LeafNode.setNumCells(&leaf4, 4)
+        var leaf4 = LeafNode.makeNew()
+        leaf4.numCells = 4
         for (i, k) in [4, 5, 6, 7].enumerated() {
-            LeafNode.setKey(&leaf4, cellNum: i, key: UInt32(k))
+            leaf4.setKey(cellNum: i, key: UInt32(k))
         }
-        table.pager.setPage(4, data: leaf4)
+        table.pager.setPage(4, data: leaf4.data)
 
-        var leaf5 = LeafNode.initialize()
-        LeafNode.setNumCells(&leaf5, 3)
+        var leaf5 = LeafNode.makeNew()
+        leaf5.numCells = 3
         for (i, k) in [8, 9, 10].enumerated() {
-            LeafNode.setKey(&leaf5, cellNum: i, key: UInt32(k))
+            leaf5.setKey(cellNum: i, key: UInt32(k))
         }
-        table.pager.setPage(5, data: leaf5)
+        table.pager.setPage(5, data: leaf5.data)
 
-        var leaf6 = LeafNode.initialize()
-        LeafNode.setNumCells(&leaf6, 2)
+        var leaf6 = LeafNode.makeNew()
+        leaf6.numCells = 2
         for (i, k) in [11, 12].enumerated() {
-            LeafNode.setKey(&leaf6, cellNum: i, key: UInt32(k))
+            leaf6.setKey(cellNum: i, key: UInt32(k))
         }
-        table.pager.setPage(6, data: leaf6)
+        table.pager.setPage(6, data: leaf6.data)
 
         // key 2: root → leftInternal → leaf3 (cell 1)
         let c2 = table.tableFind(key: 2)

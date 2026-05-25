@@ -1,11 +1,19 @@
 public class Cursor {
-    let table: Table
+    let btree: BTree
     public var pageNum: UInt32
     public var cellNum: UInt32
     public var endOfTable: Bool
 
+    init(btree: BTree, pageNum: UInt32, cellNum: UInt32, endOfTable: Bool) {
+        self.btree = btree
+        self.pageNum = pageNum
+        self.cellNum = cellNum
+        self.endOfTable = endOfTable
+    }
+
+    /// Convenience initializer used in tests that construct a Cursor via a Table.
     init(table: Table, pageNum: UInt32, cellNum: UInt32, endOfTable: Bool) {
-        self.table = table
+        btree = table.btree
         self.pageNum = pageNum
         self.cellNum = cellNum
         self.endOfTable = endOfTable
@@ -16,10 +24,10 @@ public class Cursor {
     }
 
     func advance() {
-        let node = table.pager.getPage(Int(pageNum))
+        let node = LeafNode(btree.pager.getPage(Int(pageNum)))
         cellNum += 1
-        if cellNum >= LeafNode.numCells(node) {
-            let nextPageNum = LeafNode.nextLeaf(node)
+        if cellNum >= node.numCells {
+            let nextPageNum = node.nextLeaf
             if nextPageNum == 0 {
                 endOfTable = true
             } else {
