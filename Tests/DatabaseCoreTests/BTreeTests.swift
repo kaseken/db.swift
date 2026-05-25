@@ -125,6 +125,42 @@ struct BTreeTests {
         #expect(threw)
     }
 
+    @Test func `find locates key in right leaf after split`() throws {
+        let (btree, path) = try makeTempBTree()
+        defer { btree.close(); try? FileManager.default.removeItem(atPath: path) }
+        for i: UInt32 in 1 ... 14 {
+            try btree.insert(row: Row(id: i, username: "u\(i)", email: "u\(i)@example.com"))
+        }
+        #expect(throws: ExecuteError.duplicateKey) {
+            try btree.insert(row: Row(id: 10, username: "dup", email: "dup@example.com"))
+        }
+    }
+
+    @Test func `find locates key in left leaf after split`() throws {
+        let (btree, path) = try makeTempBTree()
+        defer { btree.close(); try? FileManager.default.removeItem(atPath: path) }
+        for i: UInt32 in 1 ... 14 {
+            try btree.insert(row: Row(id: i, username: "u\(i)", email: "u\(i)@example.com"))
+        }
+        #expect(throws: ExecuteError.duplicateKey) {
+            try btree.insert(row: Row(id: 3, username: "dup", email: "dup@example.com"))
+        }
+    }
+
+    @Test func `find traverses multiple internal node levels`() throws {
+        let (btree, path) = try makeTempBTree(internalNodeMaxCells: 3)
+        defer { btree.close(); try? FileManager.default.removeItem(atPath: path) }
+        for i: UInt32 in 1 ... 35 {
+            try btree.insert(row: Row(id: i, username: "u\(i)", email: "u\(i)@example.com"))
+        }
+        #expect(throws: ExecuteError.duplicateKey) {
+            try btree.insert(row: Row(id: 2, username: "dup", email: "dup@example.com"))
+        }
+        #expect(throws: ExecuteError.duplicateKey) {
+            try btree.insert(row: Row(id: 30, username: "dup", email: "dup@example.com"))
+        }
+    }
+
     @Test func `non-root split inserts new child into interior of internal node`() throws {
         // Inserts keys 15-28 first so rows 15-21 become the left child and 22-28 the right
         // child after the root split. Then inserting keys 1-7 fills and splits the left child,

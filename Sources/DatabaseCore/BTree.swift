@@ -2,9 +2,15 @@ import Foundation
 
 class BTree {
     private let rootPageNum: UInt32 = 0
-    let pager: Pager
+    private let pager: Pager
     private let internalNodeMaxCells: Int
     private var isClosed = false
+
+    private struct Cursor {
+        var pageNum: UInt32
+        var cellNum: UInt32
+        var endOfTable: Bool
+    }
 
     init(pager: Pager, internalNodeMaxCells: Int = InternalNode.maxCells) {
         self.pager = pager
@@ -19,15 +25,20 @@ class BTree {
 
     // MARK: - Navigation
 
-    func start() -> Cursor {
+    private func start() -> Cursor {
         find(key: 0)
     }
 
     var rows: some Sequence<Row> {
-        start()
+        sequence(state: start()) { [self] cursor in
+            guard !cursor.endOfTable else { return nil }
+            let row = row(at: cursor)
+            cursor = advance(cursor)
+            return row
+        }
     }
 
-    func find(key: UInt32) -> Cursor {
+    private func find(key: UInt32) -> Cursor {
         let page = pager.getPage(Int(rootPageNum))
         switch nodeType(page) {
         case .leaf:
@@ -67,7 +78,7 @@ class BTree {
         }
     }
 
-    func leafNodeInsert(cursor: Cursor, key: UInt32, row: Row) throws(PagerError) {
+    private func leafNodeInsert(cursor: Cursor, key: UInt32, row: Row) throws(PagerError) {
         var node = LeafNode(pager.getPage(Int(cursor.pageNum)))
         if node.cells.count >= LeafNode.maxCells {
             try leafNodeSplitAndInsert(cursor: cursor, key: key, row: row)
@@ -101,6 +112,30 @@ class BTree {
         }
     }
 
+    // MARK: - Private row access
+
+    private func row(at cursor: Cursor) -> Row {
+        let page = pager.getPage(Int(cursor.pageNum))
+        let offset = LeafNode.valueOffset(cellNum: Int(cursor.cellNum))
+        return Row.deserialize(from: Data(page[offset ..< offset + Row.size]))
+    }
+
+    private func advance(_ cursor: Cursor) -> Cursor {
+        var next = cursor
+        let node = LeafNode(pager.getPage(Int(cursor.pageNum)))
+        next.cellNum += 1
+        if next.cellNum >= UInt32(node.cells.count) {
+            let nextPageNum = node.nextLeaf
+            if nextPageNum == 0 {
+                next.endOfTable = true
+            } else {
+                next.pageNum = nextPageNum
+                next.cellNum = 0
+            }
+        }
+        return next
+    }
+
     // MARK: - Private tree operations
 
     private func leafNodeFind(pageNum: UInt32, key: UInt32) -> Cursor {
@@ -112,7 +147,7 @@ class BTree {
             let index = (minIndex + onePastMaxIndex) / 2
             let keyAtIndex = node.key(cellNum: index)
             if key == keyAtIndex {
-                return Cursor(btree: self, pageNum: pageNum, cellNum: UInt32(index), endOfTable: false)
+                return Cursor(pageNum: pageNum, cellNum: UInt32(index), endOfTable: false)
             }
             if key < keyAtIndex {
                 onePastMaxIndex = index
@@ -120,7 +155,7 @@ class BTree {
                 minIndex = index + 1
             }
         }
-        return Cursor(btree: self, pageNum: pageNum, cellNum: UInt32(minIndex), endOfTable: minIndex >= count)
+        return Cursor(pageNum: pageNum, cellNum: UInt32(minIndex), endOfTable: minIndex >= count)
     }
 
     private func internalNodeFind(pageNum: UInt32, key: UInt32) -> Cursor {
