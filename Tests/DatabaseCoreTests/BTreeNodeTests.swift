@@ -127,10 +127,10 @@ struct BTreeNodeTests {
             (key: 10, value: Data(repeating: 0xAB, count: Row.size)),
             (key: 20, value: Data(repeating: 0xCD, count: Row.size)),
         ]
-        node.nextLeaf = 7
+        node.nextLeafPageNum = 7
         let restored = LeafNode(node.data)
         #expect(restored.isRoot == true)
-        #expect(restored.nextLeaf == 7)
+        #expect(restored.nextLeafPageNum == 7)
         #expect(restored.cells.count == 2)
         #expect(restored.cells[0].key == 10)
         #expect(restored.cells[1].key == 20)
@@ -149,7 +149,7 @@ struct InternalNodeTests {
 
     @Test func `InternalNode constants are correct`() {
         #expect(InternalNode.numKeysOffset == 6)
-        #expect(InternalNode.rightChildOffset == 10)
+        #expect(InternalNode.rightmostChildPageNumOffset == 10)
         #expect(InternalNode.headerSize == 14)
         #expect(InternalNode.cellSize == 8)
     }
@@ -186,12 +186,12 @@ struct InternalNodeTests {
         #expect(node.cells.count == 2)
     }
 
-    // MARK: - rightChild
+    // MARK: - rightmostChildPageNum
 
-    @Test func `InternalNode rightChild round-trip`() {
+    @Test func `InternalNode rightmostChildPageNum round-trip`() {
         var node = InternalNode.makeNew()
-        node.rightChild = 42
-        #expect(node.rightChild == 42)
+        node.rightmostChildPageNum = 42
+        #expect(node.rightmostChildPageNum == 42)
     }
 
     // MARK: - key / setKey
@@ -221,14 +221,14 @@ struct InternalNodeTests {
         var node = InternalNode.makeNew()
         node.isRoot = true
         node.cells = [(child: 3, key: 50), (child: 4, key: 100)]
-        node.rightChild = 5
+        node.rightmostChildPageNum = 5
         let restored = InternalNode(node.data)
         #expect(restored.isRoot == true)
         #expect(restored.cells.count == 2)
         #expect(restored.cells[0].child == 3)
         #expect(restored.cells[0].key == 50)
         #expect(restored.cells[1].key == 100)
-        #expect(restored.rightChild == 5)
+        #expect(restored.rightmostChildPageNum == 5)
     }
 }
 
