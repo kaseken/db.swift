@@ -26,7 +26,7 @@ public class Cursor {
     func advance() {
         let node = LeafNode(btree.pager.getPage(Int(pageNum)))
         cellNum += 1
-        if cellNum >= node.numCells {
+        if cellNum >= UInt32(node.cells.count) {
             let nextPageNum = node.nextLeaf
             if nextPageNum == 0 {
                 endOfTable = true

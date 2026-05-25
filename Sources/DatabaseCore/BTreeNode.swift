@@ -6,7 +6,7 @@ enum NodeType: UInt8 {
 }
 
 /// Byte offsets and sizes of the common node header.
-/// Private to this file — BTree consumers work through typed node instances.
+/// Private to this file — consumers work through typed node instances.
 private enum BTreeNodeLayout {
     static let nodeTypeOffset = 0
     static let isRootOffset = 1
@@ -40,42 +40,19 @@ func setParent(_ data: inout Data, _ value: UInt32) {
 // MARK: - BTreeNode protocol
 
 protocol BTreeNode {
-    var data: Data { get set }
-}
-
-/// Default implementations for the common 6-byte node header.
-extension BTreeNode {
-    var nodeType: NodeType {
-        NodeType(rawValue: data[BTreeNodeLayout.nodeTypeOffset])!
-    }
-
-    var isRoot: Bool {
-        get { data[BTreeNodeLayout.isRootOffset] != 0 }
-        set { data[BTreeNodeLayout.isRootOffset] = newValue ? 1 : 0 }
-    }
-
-    var parent: UInt32 {
-        get {
-            data.withUnsafeBytes { ptr in
-                ptr.baseAddress!.loadUnaligned(fromByteOffset: BTreeNodeLayout.parentPointerOffset, as: UInt32.self)
-            }
-        }
-        set {
-            withUnsafeBytes(of: newValue) { src in
-                data.replaceSubrange(
-                    BTreeNodeLayout.parentPointerOffset ..< BTreeNodeLayout.parentPointerOffset + 4,
-                    with: src,
-                )
-            }
-        }
-    }
+    var nodeType: NodeType { get }
+    var isRoot: Bool { get set }
+    var parent: UInt32 { get set }
+    /// Serialized page representation, ready to write to the Pager.
+    var data: Data { get }
+    init(_ data: Data)
 }
 
 // MARK: - LeafNode
 
 /// A leaf node page.
 ///
-/// Each page is laid out as follows:
+/// On disk layout:
 ///
 ///     ┌──────────────────────────────────────┐
 ///     │ common node header (6 bytes)         │
@@ -84,29 +61,21 @@ extension BTreeNode {
 ///     │   num_cells     (4) offset 6         │
 ///     │   next_leaf     (4) offset 10        │
 ///     ├──────────────────────────────────────┤
-///     │ cell 0  (295 bytes)                  │
-///     │   key   (4)  ← row.id                │
-///     │   value (291) ← serialized Row       │
-///     ├──────────────────────────────────────┤
-///     │ cell 1  (295 bytes)                  │
-///     │   ...                                │
-///     │ (up to 13 cells)                     │
+///     │ cell 0  (295 bytes): key + Row       │
+///     │ ...                                  │
 ///     └──────────────────────────────────────┘
 struct LeafNode: BTreeNode {
-    var data: Data
-
-    init(_ data: Data) {
-        self.data = data
+    var nodeType: NodeType {
+        .leaf
     }
 
-    /// Returns a new, zero-initialized leaf node page.
-    static func makeNew() -> LeafNode {
-        var data = Data(count: Pager.pageSize)
-        data[BTreeNodeLayout.nodeTypeOffset] = NodeType.leaf.rawValue
-        return LeafNode(data)
-    }
+    var isRoot: Bool
+    var parent: UInt32
+    var nextLeaf: UInt32
+    /// Stored cells. Each element holds a row key and its serialized Row value.
+    var cells: [(key: UInt32, value: Data)]
 
-    // MARK: Layout constants
+    // MARK: On-disk layout constants
 
     /// Alias kept for the `.constants` REPL command output.
     static let commonNodeHeaderSize = BTreeNodeLayout.headerSize
@@ -126,44 +95,68 @@ struct LeafNode: BTreeNode {
     static let rightSplitCount = (maxCells + 1) / 2 // 7
     static let leftSplitCount = (maxCells + 1) - rightSplitCount // 7
 
-    // MARK: numCells
+    // MARK: Initializers
 
-    var numCells: UInt32 {
-        get {
-            data.withUnsafeBytes { ptr in
-                // numCellsOffset (6) is not 4-byte aligned, so loadUnaligned is required.
-                ptr.baseAddress!.loadUnaligned(fromByteOffset: LeafNode.numCellsOffset, as: UInt32.self)
-            }
+    init(_ data: Data) {
+        isRoot = data[BTreeNodeLayout.isRootOffset] != 0
+        parent = data.withUnsafeBytes { ptr in
+            ptr.baseAddress!.loadUnaligned(fromByteOffset: BTreeNodeLayout.parentPointerOffset, as: UInt32.self)
         }
-        set {
-            withUnsafeBytes(of: newValue) { src in
-                data.replaceSubrange(
-                    LeafNode.numCellsOffset ..< LeafNode.numCellsOffset + LeafNode.numCellsSize,
-                    with: src,
-                )
-            }
+        let numCells = data.withUnsafeBytes { ptr in
+            ptr.baseAddress!.loadUnaligned(fromByteOffset: LeafNode.numCellsOffset, as: UInt32.self)
         }
-    }
-
-    // MARK: nextLeaf
-
-    var nextLeaf: UInt32 {
-        get {
-            data.withUnsafeBytes { ptr in
-                ptr.baseAddress!.loadUnaligned(fromByteOffset: LeafNode.nextLeafOffset, as: UInt32.self)
-            }
+        nextLeaf = data.withUnsafeBytes { ptr in
+            ptr.baseAddress!.loadUnaligned(fromByteOffset: LeafNode.nextLeafOffset, as: UInt32.self)
         }
-        set {
-            withUnsafeBytes(of: newValue) { src in
-                data.replaceSubrange(
-                    LeafNode.nextLeafOffset ..< LeafNode.nextLeafOffset + LeafNode.nextLeafSize,
-                    with: src,
-                )
+        cells = (0 ..< Int(numCells)).map { i in
+            let key = data.withUnsafeBytes { ptr in
+                ptr.baseAddress!.loadUnaligned(fromByteOffset: LeafNode.keyOffset(cellNum: i), as: UInt32.self)
             }
+            let valOff = LeafNode.valueOffset(cellNum: i)
+            return (key: key, value: Data(data[valOff ..< valOff + Row.size]))
         }
     }
 
-    // MARK: Cell layout helpers (pure arithmetic)
+    /// Returns a new, empty leaf node.
+    static func makeNew() -> LeafNode {
+        LeafNode(isRoot: false, parent: 0, nextLeaf: 0, cells: [])
+    }
+
+    private init(isRoot: Bool, parent: UInt32, nextLeaf: UInt32, cells: [(key: UInt32, value: Data)]) {
+        self.isRoot = isRoot
+        self.parent = parent
+        self.nextLeaf = nextLeaf
+        self.cells = cells
+    }
+
+    // MARK: Serialization
+
+    var data: Data {
+        var out = Data(count: Pager.pageSize)
+        out[BTreeNodeLayout.nodeTypeOffset] = NodeType.leaf.rawValue
+        out[BTreeNodeLayout.isRootOffset] = isRoot ? 1 : 0
+        withUnsafeBytes(of: parent) { src in
+            out.replaceSubrange(BTreeNodeLayout.parentPointerOffset ..< BTreeNodeLayout.parentPointerOffset + 4, with: src)
+        }
+        let numCells = UInt32(cells.count)
+        withUnsafeBytes(of: numCells) { src in
+            out.replaceSubrange(LeafNode.numCellsOffset ..< LeafNode.numCellsOffset + LeafNode.numCellsSize, with: src)
+        }
+        withUnsafeBytes(of: nextLeaf) { src in
+            out.replaceSubrange(LeafNode.nextLeafOffset ..< LeafNode.nextLeafOffset + LeafNode.nextLeafSize, with: src)
+        }
+        for (i, cell) in cells.enumerated() {
+            withUnsafeBytes(of: cell.key) { src in
+                let off = LeafNode.keyOffset(cellNum: i)
+                out.replaceSubrange(off ..< off + LeafNode.keySize, with: src)
+            }
+            let valOff = LeafNode.valueOffset(cellNum: i)
+            out.replaceSubrange(valOff ..< valOff + Row.size, with: cell.value)
+        }
+        return out
+    }
+
+    // MARK: Cell layout helpers (pure arithmetic — used by Cursor.value() and serialization)
 
     static func cellOffset(cellNum: Int) -> Int {
         headerSize + cellNum * cellSize
@@ -177,24 +170,18 @@ struct LeafNode: BTreeNode {
         cellOffset(cellNum: cellNum) + keySize
     }
 
-    // MARK: key / setKey
+    // MARK: Convenience accessors
 
     func key(cellNum: Int) -> UInt32 {
-        data.withUnsafeBytes { ptr in
-            // Cell offsets are not 4-byte aligned, so loadUnaligned is required.
-            ptr.baseAddress!.loadUnaligned(fromByteOffset: LeafNode.keyOffset(cellNum: cellNum), as: UInt32.self)
-        }
+        cells[cellNum].key
     }
 
     mutating func setKey(cellNum: Int, key: UInt32) {
-        withUnsafeBytes(of: key) { src in
-            let off = LeafNode.keyOffset(cellNum: cellNum)
-            data.replaceSubrange(off ..< off + LeafNode.keySize, with: src)
-        }
+        cells[cellNum].key = key
     }
 
     var maxKey: UInt32 {
-        key(cellNum: Int(numCells) - 1)
+        cells.last!.key
     }
 }
 
@@ -202,7 +189,7 @@ struct LeafNode: BTreeNode {
 
 /// An internal node page.
 ///
-/// Each page is laid out as follows:
+/// On disk layout:
 ///
 ///     ┌──────────────────────────────────────┐
 ///     │ common node header (6 bytes)         │
@@ -211,32 +198,24 @@ struct LeafNode: BTreeNode {
 ///     │   num_keys    (4) offset 6           │
 ///     │   right_child (4) offset 10          │
 ///     ├──────────────────────────────────────┤
-///     │ cell 0 (8 bytes)                     │
-///     │   child (4) offset 14                │
-///     │   key   (4) offset 18                │
-///     ├──────────────────────────────────────┤
-///     │ cell 1 (8 bytes) ...                 │
+///     │ cell 0 (8 bytes): child + key        │
+///     │ ...                                  │
 ///     └──────────────────────────────────────┘
 struct InternalNode: BTreeNode {
-    var data: Data
+    var nodeType: NodeType {
+        .internal
+    }
+
+    var isRoot: Bool
+    var parent: UInt32
+    /// Stored cells. Each element holds a child page number and its separator key.
+    var cells: [(child: UInt32, key: UInt32)]
+    var rightChild: UInt32
 
     /// Sentinel page number meaning "no page assigned".
     static let invalidPageNum: UInt32 = .max
 
-    init(_ data: Data) {
-        self.data = data
-    }
-
-    /// Returns a new, zero-initialized internal node page.
-    static func makeNew() -> InternalNode {
-        var data = Data(count: Pager.pageSize)
-        data[BTreeNodeLayout.nodeTypeOffset] = NodeType.internal.rawValue
-        var node = InternalNode(data)
-        node.rightChild = InternalNode.invalidPageNum
-        return node
-    }
-
-    // MARK: Layout constants
+    // MARK: On-disk layout constants
 
     private static let numKeysSize = 4
     static let numKeysOffset = BTreeNodeLayout.headerSize // 6
@@ -248,40 +227,69 @@ struct InternalNode: BTreeNode {
     private static let childSize = 4
     static let cellSize = childSize + keySize // 8
 
-    // MARK: numKeys
+    // MARK: Initializers
 
-    var numKeys: UInt32 {
-        get {
-            data.withUnsafeBytes { ptr in
-                ptr.baseAddress!.loadUnaligned(fromByteOffset: InternalNode.numKeysOffset, as: UInt32.self)
-            }
+    init(_ data: Data) {
+        isRoot = data[BTreeNodeLayout.isRootOffset] != 0
+        parent = data.withUnsafeBytes { ptr in
+            ptr.baseAddress!.loadUnaligned(fromByteOffset: BTreeNodeLayout.parentPointerOffset, as: UInt32.self)
         }
-        set {
-            withUnsafeBytes(of: newValue) { src in
-                data.replaceSubrange(
-                    InternalNode.numKeysOffset ..< InternalNode.numKeysOffset + InternalNode.numKeysSize,
-                    with: src,
-                )
+        let numKeys = data.withUnsafeBytes { ptr in
+            ptr.baseAddress!.loadUnaligned(fromByteOffset: InternalNode.numKeysOffset, as: UInt32.self)
+        }
+        rightChild = data.withUnsafeBytes { ptr in
+            ptr.baseAddress!.loadUnaligned(fromByteOffset: InternalNode.rightChildOffset, as: UInt32.self)
+        }
+        cells = (0 ..< Int(numKeys)).map { i in
+            let off = InternalNode.cellOffset(cellNum: i)
+            let child = data.withUnsafeBytes { ptr in
+                ptr.baseAddress!.loadUnaligned(fromByteOffset: off, as: UInt32.self)
             }
+            let key = data.withUnsafeBytes { ptr in
+                ptr.baseAddress!.loadUnaligned(fromByteOffset: off + InternalNode.childSize, as: UInt32.self)
+            }
+            return (child: child, key: key)
         }
     }
 
-    // MARK: rightChild
+    /// Returns a new, empty internal node.
+    static func makeNew() -> InternalNode {
+        InternalNode(isRoot: false, parent: 0, cells: [], rightChild: InternalNode.invalidPageNum)
+    }
 
-    var rightChild: UInt32 {
-        get {
-            data.withUnsafeBytes { ptr in
-                ptr.baseAddress!.loadUnaligned(fromByteOffset: InternalNode.rightChildOffset, as: UInt32.self)
+    private init(isRoot: Bool, parent: UInt32, cells: [(child: UInt32, key: UInt32)], rightChild: UInt32) {
+        self.isRoot = isRoot
+        self.parent = parent
+        self.cells = cells
+        self.rightChild = rightChild
+    }
+
+    // MARK: Serialization
+
+    var data: Data {
+        var out = Data(count: Pager.pageSize)
+        out[BTreeNodeLayout.nodeTypeOffset] = NodeType.internal.rawValue
+        out[BTreeNodeLayout.isRootOffset] = isRoot ? 1 : 0
+        withUnsafeBytes(of: parent) { src in
+            out.replaceSubrange(BTreeNodeLayout.parentPointerOffset ..< BTreeNodeLayout.parentPointerOffset + 4, with: src)
+        }
+        let numKeys = UInt32(cells.count)
+        withUnsafeBytes(of: numKeys) { src in
+            out.replaceSubrange(InternalNode.numKeysOffset ..< InternalNode.numKeysOffset + InternalNode.numKeysSize, with: src)
+        }
+        withUnsafeBytes(of: rightChild) { src in
+            out.replaceSubrange(InternalNode.rightChildOffset ..< InternalNode.rightChildOffset + InternalNode.rightChildSize, with: src)
+        }
+        for (i, cell) in cells.enumerated() {
+            let off = InternalNode.cellOffset(cellNum: i)
+            withUnsafeBytes(of: cell.child) { src in
+                out.replaceSubrange(off ..< off + InternalNode.childSize, with: src)
+            }
+            withUnsafeBytes(of: cell.key) { src in
+                out.replaceSubrange(off + InternalNode.childSize ..< off + InternalNode.cellSize, with: src)
             }
         }
-        set {
-            withUnsafeBytes(of: newValue) { src in
-                data.replaceSubrange(
-                    InternalNode.rightChildOffset ..< InternalNode.rightChildOffset + InternalNode.rightChildSize,
-                    with: src,
-                )
-            }
-        }
+        return out
     }
 
     // MARK: Cell layout helpers
@@ -294,60 +302,35 @@ struct InternalNode: BTreeNode {
         cellOffset(cellNum: keyNum) + childSize
     }
 
-    // MARK: findChildIndex (binary search)
+    // MARK: Convenience accessors
 
     func findChildIndex(key: UInt32) -> Int {
-        var minIndex: UInt32 = 0
-        var maxIndex = numKeys
-        while minIndex < maxIndex {
-            let mid = (minIndex + maxIndex) / 2
-            if self.key(keyNum: Int(mid)) >= key { maxIndex = mid }
-            else { minIndex = mid + 1 }
+        var lo = 0, hi = cells.count
+        while lo < hi {
+            let mid = (lo + hi) / 2
+            if cells[mid].key >= key { hi = mid } else { lo = mid + 1 }
         }
-        return Int(minIndex)
+        return lo
     }
 
-    // MARK: child / setChild
-
-    /// Returns the child page number for `childNum`.
-    /// When `childNum == numKeys`, returns the right child.
     func child(childNum: Int) -> UInt32 {
-        precondition(childNum <= Int(numKeys), "Tried to access child_num \(childNum) > num_keys \(numKeys)")
-        if childNum == Int(numKeys) { return rightChild }
-        return data.withUnsafeBytes { ptr in
-            ptr.baseAddress!.loadUnaligned(
-                fromByteOffset: InternalNode.cellOffset(cellNum: childNum), as: UInt32.self,
-            )
-        }
+        childNum == cells.count ? rightChild : cells[childNum].child
     }
 
     mutating func setChild(childNum: Int, _ value: UInt32) {
-        precondition(childNum <= Int(numKeys), "Tried to access child_num \(childNum) > num_keys \(numKeys)")
-        if childNum == Int(numKeys) { rightChild = value; return }
-        let off = InternalNode.cellOffset(cellNum: childNum)
-        withUnsafeBytes(of: value) { src in
-            data.replaceSubrange(off ..< off + InternalNode.childSize, with: src)
-        }
+        if childNum == cells.count { rightChild = value } else { cells[childNum].child = value }
     }
 
-    // MARK: key / setKey
-
     func key(keyNum: Int) -> UInt32 {
-        let off = InternalNode.keyOffset(keyNum: keyNum)
-        return data.withUnsafeBytes { ptr in
-            ptr.baseAddress!.loadUnaligned(fromByteOffset: off, as: UInt32.self)
-        }
+        cells[keyNum].key
     }
 
     mutating func setKey(keyNum: Int, _ value: UInt32) {
-        let off = InternalNode.keyOffset(keyNum: keyNum)
-        withUnsafeBytes(of: value) { src in
-            data.replaceSubrange(off ..< off + InternalNode.keySize, with: src)
-        }
+        cells[keyNum].key = value
     }
 
     var maxKey: UInt32 {
-        key(keyNum: Int(numKeys) - 1)
+        cells.last!.key
     }
 }
 

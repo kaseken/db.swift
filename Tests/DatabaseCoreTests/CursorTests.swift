@@ -160,52 +160,34 @@ struct CursorTests {
 
         var root = InternalNode.makeNew()
         root.isRoot = true
-        root.numKeys = 1
-        root.setChild(childNum: 0, 1)
-        root.setKey(keyNum: 0, 7)
+        root.cells = [(child: 1, key: 7)]
         root.rightChild = 2
         table.pager.setPage(0, data: root.data)
 
         var leftInternal = InternalNode.makeNew()
-        leftInternal.numKeys = 1
-        leftInternal.setChild(childNum: 0, 3)
-        leftInternal.setKey(keyNum: 0, 3)
+        leftInternal.cells = [(child: 3, key: 3)]
         leftInternal.rightChild = 4
         table.pager.setPage(1, data: leftInternal.data)
 
         var rightInternal = InternalNode.makeNew()
-        rightInternal.numKeys = 1
-        rightInternal.setChild(childNum: 0, 5)
-        rightInternal.setKey(keyNum: 0, 10)
+        rightInternal.cells = [(child: 5, key: 10)]
         rightInternal.rightChild = 6
         table.pager.setPage(2, data: rightInternal.data)
 
         var leaf3 = LeafNode.makeNew()
-        leaf3.numCells = 3
-        for (i, k) in [1, 2, 3].enumerated() {
-            leaf3.setKey(cellNum: i, key: UInt32(k))
-        }
+        leaf3.cells = [1, 2, 3].map { k in (key: UInt32(k), value: Data(count: Row.size)) }
         table.pager.setPage(3, data: leaf3.data)
 
         var leaf4 = LeafNode.makeNew()
-        leaf4.numCells = 4
-        for (i, k) in [4, 5, 6, 7].enumerated() {
-            leaf4.setKey(cellNum: i, key: UInt32(k))
-        }
+        leaf4.cells = [4, 5, 6, 7].map { k in (key: UInt32(k), value: Data(count: Row.size)) }
         table.pager.setPage(4, data: leaf4.data)
 
         var leaf5 = LeafNode.makeNew()
-        leaf5.numCells = 3
-        for (i, k) in [8, 9, 10].enumerated() {
-            leaf5.setKey(cellNum: i, key: UInt32(k))
-        }
+        leaf5.cells = [8, 9, 10].map { k in (key: UInt32(k), value: Data(count: Row.size)) }
         table.pager.setPage(5, data: leaf5.data)
 
         var leaf6 = LeafNode.makeNew()
-        leaf6.numCells = 2
-        for (i, k) in [11, 12].enumerated() {
-            leaf6.setKey(cellNum: i, key: UInt32(k))
-        }
+        leaf6.cells = [11, 12].map { k in (key: UInt32(k), value: Data(count: Row.size)) }
         table.pager.setPage(6, data: leaf6.data)
 
         // key 2: root → leftInternal → leaf3 (cell 1)

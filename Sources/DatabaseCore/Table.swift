@@ -26,7 +26,7 @@ public class Table {
     public func insert(row: Row) -> ExecuteResult {
         let cursor = btree.find(key: row.id)
         let node = LeafNode(btree.pager.getPage(Int(cursor.pageNum)))
-        if cursor.cellNum < node.numCells {
+        if cursor.cellNum < UInt32(node.cells.count) {
             if node.key(cellNum: Int(cursor.cellNum)) == row.id {
                 return .duplicateKey
             }
