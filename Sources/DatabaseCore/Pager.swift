@@ -1,8 +1,9 @@
 import Foundation
 
-enum PagerError: Error {
+enum PagerError: Error, Equatable {
     case cannotOpenFile(String)
     case tableFull
+    case pageNotAllocated(Int)
 }
 
 class Pager {
@@ -12,7 +13,7 @@ class Pager {
     private let fileHandle: FileHandle
     /// The file size at the time this Pager was opened. Used only during cache-miss
     /// to determine whether a page already exists on disk or needs to be freshly allocated.
-    let diskFileLength: Int
+    private let diskFileLength: Int
     /// The number of pages allocated so far.
     private(set) var numPages: Int
     private var pages: [Data?]
@@ -31,14 +32,14 @@ class Pager {
         pages = Array(repeating: nil, count: Pager.maxPages)
     }
 
-    func getPage(_ pageNum: Int) -> Data {
+    func getPage(_ pageNum: Int) throws(PagerError) -> Data {
         if let cached = pages[pageNum] {
             return cached
         }
         // Pages are stored sequentially in the file: page 0 at offset 0, page 1 at offset 4096, etc.
         let pageOffset = pageNum * Pager.pageSize
         guard pageOffset < diskFileLength else {
-            preconditionFailure("Page \(pageNum) has not been allocated. Call allocatePage() first.")
+            throw PagerError.pageNotAllocated(pageNum)
         }
         fileHandle.seek(toFileOffset: UInt64(pageOffset))
         // For full pages this equals pageSize; for the last partial page it is smaller

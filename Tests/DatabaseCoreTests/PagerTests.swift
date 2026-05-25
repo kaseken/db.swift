@@ -9,12 +9,12 @@ struct PagerTests {
             .path
     }
 
-    @Test func `opens a new file with diskFileLength zero`() throws {
+    @Test func `opens a new file with zero pages`() throws {
         let path = makeTempPath()
         defer { try? FileManager.default.removeItem(atPath: path) }
         let pager = try Pager(filename: path)
         defer { pager.close() }
-        #expect(pager.diskFileLength == 0)
+        #expect(pager.numPages == 0)
     }
 
     @Test func `getPage returns a blank page after allocatePage`() throws {
@@ -23,7 +23,7 @@ struct PagerTests {
         let pager = try Pager(filename: path)
         defer { pager.close() }
         let pageNum = try pager.allocatePage()
-        let page = pager.getPage(pageNum)
+        let page = try pager.getPage(pageNum)
         #expect(page == Data(count: Pager.pageSize))
     }
 
@@ -33,11 +33,11 @@ struct PagerTests {
         let pager = try Pager(filename: path)
         defer { pager.close() }
         let pageNum = try pager.allocatePage()
-        var page = pager.getPage(pageNum)
+        var page = try pager.getPage(pageNum)
         page[0] = 0xFF
         pager.setPage(pageNum, data: page)
         // Second call should return the cached (modified) page, not a fresh blank one
-        #expect(pager.getPage(pageNum)[0] == 0xFF)
+        #expect(try pager.getPage(pageNum)[0] == 0xFF)
     }
 
     @Test func `flushAll persists data that can be read back after reopening`() throws {
@@ -54,17 +54,18 @@ struct PagerTests {
 
         let pager2 = try Pager(filename: path)
         defer { pager2.close() }
-        #expect(pager2.diskFileLength == Pager.pageSize)
-        #expect(pager2.getPage(0)[0] == 0x42)
+        #expect(pager2.numPages == 1)
+        #expect(try pager2.getPage(0)[0] == 0x42)
     }
 
     @Test func `flushAll on empty pager does not write to file`() throws {
         let path = makeTempPath()
         defer { try? FileManager.default.removeItem(atPath: path) }
         let pager = try Pager(filename: path)
-        defer { pager.close() }
         pager.flushAll()
-        #expect(pager.diskFileLength == 0)
+        pager.close()
+        let fileSize = (try? FileManager.default.attributesOfItem(atPath: path)[.size] as? Int) ?? 0
+        #expect(fileSize == 0)
     }
 
     @Test func `getPage zero-pads a partial page read from disk`() throws {
@@ -79,13 +80,23 @@ struct PagerTests {
 
         let pager = try Pager(filename: path)
         defer { pager.close() }
-        let page = pager.getPage(0)
+        let page = try pager.getPage(0)
 
         #expect(page.count == Pager.pageSize)
         #expect(page[0] == 0xAB)
         // Bytes beyond the original partial data must be zero-padded.
         #expect(page[partialSize] == 0x00)
         #expect(page[Pager.pageSize - 1] == 0x00)
+    }
+
+    @Test func `getPage throws pageNotAllocated for unallocated page`() throws {
+        let path = makeTempPath()
+        defer { try? FileManager.default.removeItem(atPath: path) }
+        let pager = try Pager(filename: path)
+        defer { pager.close() }
+        #expect(throws: PagerError.pageNotAllocated(0)) {
+            try pager.getPage(0)
+        }
     }
 
     @Test func `throws cannotOpenFile when file is not readable`() throws {
