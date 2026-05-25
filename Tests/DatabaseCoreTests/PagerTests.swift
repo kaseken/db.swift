@@ -17,12 +17,13 @@ struct PagerTests {
         #expect(pager.diskFileLength == 0)
     }
 
-    @Test func `getPage returns a blank page for a new file`() throws {
+    @Test func `getPage returns a blank page after allocatePage`() throws {
         let path = makeTempPath()
         defer { try? FileManager.default.removeItem(atPath: path) }
         let pager = try Pager(filename: path)
         defer { pager.close() }
-        let page = pager.getPage(0)
+        let pageNum = try pager.allocatePage()
+        let page = pager.getPage(pageNum)
         #expect(page == Data(count: Pager.pageSize))
     }
 
@@ -31,11 +32,12 @@ struct PagerTests {
         defer { try? FileManager.default.removeItem(atPath: path) }
         let pager = try Pager(filename: path)
         defer { pager.close() }
-        var page = pager.getPage(0)
+        let pageNum = try pager.allocatePage()
+        var page = pager.getPage(pageNum)
         page[0] = 0xFF
-        pager.setPage(0, data: page)
+        pager.setPage(pageNum, data: page)
         // Second call should return the cached (modified) page, not a fresh blank one
-        #expect(pager.getPage(0)[0] == 0xFF)
+        #expect(pager.getPage(pageNum)[0] == 0xFF)
     }
 
     @Test func `flushAll persists data that can be read back after reopening`() throws {
@@ -45,7 +47,7 @@ struct PagerTests {
         var page = Data(count: Pager.pageSize)
         page[0] = 0x42
         let pager = try Pager(filename: path)
-        _ = pager.getPage(0)
+        _ = try pager.allocatePage()
         pager.setPage(0, data: page)
         pager.flushAll()
         pager.close()

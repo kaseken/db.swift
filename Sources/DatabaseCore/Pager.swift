@@ -14,7 +14,6 @@ class Pager {
     /// to determine whether a page already exists on disk or needs to be freshly allocated.
     let diskFileLength: Int
     /// The number of pages allocated so far.
-    /// Increases when getPage is called for a page beyond the current end of file.
     private(set) var numPages: Int
     private var pages: [Data?]
 
@@ -39,15 +38,7 @@ class Pager {
         // Pages are stored sequentially in the file: page 0 at offset 0, page 1 at offset 4096, etc.
         let pageOffset = pageNum * Pager.pageSize
         guard pageOffset < diskFileLength else {
-            // Page is beyond the end of the file — allocate a blank page
-            // TODO: Non-sequential page allocation (pageNum > numPages) leaves gaps in numPages tracking.
-            // Pages in the gap are nil in cache and skipped on flush, corrupting the file.
-            // This must be fixed before implementing leaf node splits.
-            assert(pageNum == numPages, "Non-sequential page allocation: pageNum=\(pageNum), numPages=\(numPages)")
-            numPages = pageNum + 1
-            let page = Data(count: Pager.pageSize)
-            pages[pageNum] = page
-            return page
+            preconditionFailure("Page \(pageNum) has not been allocated. Call allocatePage() first.")
         }
         fileHandle.seek(toFileOffset: UInt64(pageOffset))
         // For full pages this equals pageSize; for the last partial page it is smaller

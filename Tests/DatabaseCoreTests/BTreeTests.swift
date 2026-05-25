@@ -9,9 +9,9 @@ struct BTreeTests {
             .path
         let pager = try Pager(filename: path)
         let btree = if let maxCells = internalNodeMaxCells {
-            BTree(pager: pager, internalNodeMaxCells: maxCells)
+            try BTree(pager: pager, internalNodeMaxCells: maxCells)
         } else {
-            BTree(pager: pager)
+            try BTree(pager: pager)
         }
         return (btree, path)
     }

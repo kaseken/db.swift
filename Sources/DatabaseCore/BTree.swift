@@ -12,11 +12,11 @@ class BTree {
         var endOfTable: Bool
     }
 
-    init(pager: Pager, internalNodeMaxCells: Int = InternalNode.maxCells) {
+    init(pager: Pager, internalNodeMaxCells: Int = InternalNode.maxCells) throws(PagerError) {
         self.pager = pager
         self.internalNodeMaxCells = internalNodeMaxCells
         if pager.numPages == 0 {
-            _ = pager.getPage(0)
+            _ = try pager.allocatePage()
             var root = LeafNode.makeNew()
             root.isRoot = true
             pager.setPage(0, data: root.data)
@@ -74,7 +74,8 @@ class BTree {
         do {
             try leafNodeInsert(cursor: cursor, key: row.id, row: row)
         } catch {
-            throw .tableFull
+            // leafNodeInsert throws(PagerError); the only reachable case here is .tableFull
+            throw ExecuteError.tableFull
         }
     }
 
