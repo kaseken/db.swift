@@ -81,9 +81,9 @@ struct LeafNode: BTreeNode {
     static let commonNodeHeaderSize = BTreeNodeLayout.headerSize
 
     private static let numCellsSize = 4
-    static let numCellsOffset = BTreeNodeLayout.headerSize // 6
+    private static let numCellsOffset = BTreeNodeLayout.headerSize // 6
     private static let nextLeafSize = 4
-    static let nextLeafOffset = numCellsOffset + numCellsSize // 10
+    private static let nextLeafOffset = numCellsOffset + numCellsSize // 10
     static let headerSize = BTreeNodeLayout.headerSize + numCellsSize + nextLeafSize // 14
 
     static let keySize = 4
@@ -295,12 +295,8 @@ struct InternalNode: BTreeNode {
 
     // MARK: Cell layout helpers
 
-    static func cellOffset(cellNum: Int) -> Int {
+    private static func cellOffset(cellNum: Int) -> Int {
         headerSize + cellNum * cellSize
-    }
-
-    static func keyOffset(keyNum: Int) -> Int {
-        cellOffset(cellNum: keyNum) + childSize
     }
 
     // MARK: Convenience accessors
