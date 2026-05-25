@@ -11,14 +11,6 @@ public class Cursor {
         self.endOfTable = endOfTable
     }
 
-    /// Convenience initializer used in tests that construct a Cursor via a Table.
-    init(table: Table, pageNum: UInt32, cellNum: UInt32, endOfTable: Bool) {
-        btree = table.btree
-        self.pageNum = pageNum
-        self.cellNum = cellNum
-        self.endOfTable = endOfTable
-    }
-
     func value() -> (pageIndex: Int, byteOffset: Int) {
         (Int(pageNum), LeafNode.valueOffset(cellNum: Int(cellNum)))
     }

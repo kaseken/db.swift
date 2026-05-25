@@ -17,7 +17,7 @@ struct CursorTests {
             table.close()
             try? FileManager.default.removeItem(atPath: path)
         }
-        let cursor = table.tableStart()
+        let cursor = table.btree.start()
         #expect(cursor.endOfTable == true)
         #expect(cursor.cellNum == 0)
     }
@@ -29,7 +29,7 @@ struct CursorTests {
             try? FileManager.default.removeItem(atPath: path)
         }
         table.insert(row: Row(id: 1, username: "a", email: "a@example.com"))
-        let cursor = table.tableStart()
+        let cursor = table.btree.start()
         #expect(cursor.cellNum == 0)
         #expect(cursor.endOfTable == false)
     }
@@ -42,7 +42,7 @@ struct CursorTests {
         }
         table.insert(row: Row(id: 1, username: "a", email: "a@example.com"))
         table.insert(row: Row(id: 2, username: "b", email: "b@example.com"))
-        let cursor = table.tableFind(key: 1)
+        let cursor = table.btree.find(key: 1)
         #expect(cursor.cellNum == 0)
         #expect(cursor.endOfTable == false)
     }
@@ -55,7 +55,7 @@ struct CursorTests {
         }
         table.insert(row: Row(id: 1, username: "a", email: "a@example.com"))
         table.insert(row: Row(id: 2, username: "b", email: "b@example.com"))
-        let cursor = table.tableFind(key: 3)
+        let cursor = table.btree.find(key: 3)
         #expect(cursor.cellNum == 2)
         #expect(cursor.endOfTable == true)
     }
@@ -66,13 +66,13 @@ struct CursorTests {
             table.close()
             try? FileManager.default.removeItem(atPath: path)
         }
-        let c0 = Cursor(table: table, pageNum: 0, cellNum: 0, endOfTable: false)
+        let c0 = Cursor(btree: table.btree, pageNum: 0, cellNum: 0, endOfTable: false)
         #expect(c0.value() == (pageIndex: 0, byteOffset: LeafNode.valueOffset(cellNum: 0)))
 
-        let c1 = Cursor(table: table, pageNum: 0, cellNum: 1, endOfTable: false)
+        let c1 = Cursor(btree: table.btree, pageNum: 0, cellNum: 1, endOfTable: false)
         #expect(c1.value() == (pageIndex: 0, byteOffset: LeafNode.valueOffset(cellNum: 1)))
 
-        let c12 = Cursor(table: table, pageNum: 0, cellNum: 12, endOfTable: false)
+        let c12 = Cursor(btree: table.btree, pageNum: 0, cellNum: 12, endOfTable: false)
         #expect(c12.value() == (pageIndex: 0, byteOffset: LeafNode.valueOffset(cellNum: 12)))
     }
 
@@ -84,7 +84,7 @@ struct CursorTests {
         }
         table.insert(row: Row(id: 1, username: "a", email: "a@example.com"))
         table.insert(row: Row(id: 2, username: "b", email: "b@example.com"))
-        let cursor = table.tableStart()
+        let cursor = table.btree.start()
         #expect(cursor.cellNum == 0)
         cursor.advance()
         #expect(cursor.cellNum == 1)
@@ -103,8 +103,8 @@ struct CursorTests {
             table.insert(row: Row(id: i, username: "u\(i)", email: "u\(i)@example.com"))
         }
         // Key 10 lives in the right leaf (page 1, cell 2).
-        let cursor = table.tableFind(key: 10)
-        let page = table.pager.getPage(Int(cursor.pageNum))
+        let cursor = table.btree.find(key: 10)
+        let page = table.btree.pager.getPage(Int(cursor.pageNum))
         #expect(nodeType(page) == .leaf)
         #expect(LeafNode(page).key(cellNum: Int(cursor.cellNum)) == 10)
     }
@@ -119,8 +119,8 @@ struct CursorTests {
             table.insert(row: Row(id: i, username: "u\(i)", email: "u\(i)@example.com"))
         }
         // Key 3 lives in the left leaf.
-        let cursor = table.tableFind(key: 3)
-        let page = table.pager.getPage(Int(cursor.pageNum))
+        let cursor = table.btree.find(key: 3)
+        let page = table.btree.pager.getPage(Int(cursor.pageNum))
         #expect(nodeType(page) == .leaf)
         #expect(LeafNode(page).key(cellNum: Int(cursor.cellNum)) == 3)
     }
@@ -135,8 +135,8 @@ struct CursorTests {
             table.insert(row: Row(id: i, username: "u\(i)", email: "u\(i)@example.com"))
         }
         // Key 15 does not exist; cursor should point to the insertion position at end of right leaf.
-        let cursor = table.tableFind(key: 15)
-        let page = table.pager.getPage(Int(cursor.pageNum))
+        let cursor = table.btree.find(key: 15)
+        let page = table.btree.pager.getPage(Int(cursor.pageNum))
         #expect(nodeType(page) == .leaf)
         #expect(cursor.endOfTable == true)
     }
@@ -162,40 +162,40 @@ struct CursorTests {
         root.isRoot = true
         root.cells = [(child: 1, key: 7)]
         root.rightChild = 2
-        table.pager.setPage(0, data: root.data)
+        table.btree.pager.setPage(0, data: root.data)
 
         var leftInternal = InternalNode.makeNew()
         leftInternal.cells = [(child: 3, key: 3)]
         leftInternal.rightChild = 4
-        table.pager.setPage(1, data: leftInternal.data)
+        table.btree.pager.setPage(1, data: leftInternal.data)
 
         var rightInternal = InternalNode.makeNew()
         rightInternal.cells = [(child: 5, key: 10)]
         rightInternal.rightChild = 6
-        table.pager.setPage(2, data: rightInternal.data)
+        table.btree.pager.setPage(2, data: rightInternal.data)
 
         var leaf3 = LeafNode.makeNew()
         leaf3.cells = [1, 2, 3].map { k in (key: UInt32(k), value: Data(count: Row.size)) }
-        table.pager.setPage(3, data: leaf3.data)
+        table.btree.pager.setPage(3, data: leaf3.data)
 
         var leaf4 = LeafNode.makeNew()
         leaf4.cells = [4, 5, 6, 7].map { k in (key: UInt32(k), value: Data(count: Row.size)) }
-        table.pager.setPage(4, data: leaf4.data)
+        table.btree.pager.setPage(4, data: leaf4.data)
 
         var leaf5 = LeafNode.makeNew()
         leaf5.cells = [8, 9, 10].map { k in (key: UInt32(k), value: Data(count: Row.size)) }
-        table.pager.setPage(5, data: leaf5.data)
+        table.btree.pager.setPage(5, data: leaf5.data)
 
         var leaf6 = LeafNode.makeNew()
         leaf6.cells = [11, 12].map { k in (key: UInt32(k), value: Data(count: Row.size)) }
-        table.pager.setPage(6, data: leaf6.data)
+        table.btree.pager.setPage(6, data: leaf6.data)
 
         // key 2: root → leftInternal → leaf3 (cell 1)
-        let c2 = table.tableFind(key: 2)
+        let c2 = table.btree.find(key: 2)
         #expect(c2.pageNum == 3 && c2.cellNum == 1)
 
         // key 9: root → rightInternal → leaf5 (cell 1)
-        let c9 = table.tableFind(key: 9)
+        let c9 = table.btree.find(key: 9)
         #expect(c9.pageNum == 5 && c9.cellNum == 1)
     }
 
@@ -206,7 +206,7 @@ struct CursorTests {
             try? FileManager.default.removeItem(atPath: path)
         }
         table.insert(row: Row(id: 1, username: "a", email: "a@example.com"))
-        let cursor = table.tableStart()
+        let cursor = table.btree.start()
         cursor.advance()
         #expect(cursor.endOfTable == true)
     }

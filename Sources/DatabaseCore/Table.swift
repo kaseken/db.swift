@@ -47,22 +47,4 @@ public class Table {
         }
         return rows
     }
-
-    // MARK: - Forwarding shims (used by tests)
-
-    var pager: Pager {
-        btree.pager
-    }
-
-    func tableStart() -> Cursor {
-        btree.start()
-    }
-
-    func tableFind(key: UInt32) -> Cursor {
-        btree.find(key: key)
-    }
-
-    func printTree(pageNum: UInt32 = 0, indentation: Int = 0) {
-        btree.printTree(pageNum: pageNum, indentation: indentation)
-    }
 }

@@ -31,7 +31,7 @@ enum MetaCommand: Equatable {
             return false
         case .btree:
             print("Tree:")
-            table.printTree()
+            table.btree.printTree()
             return false
         case let .unrecognized(cmd):
             print("Unrecognized command '\(cmd)'.")
