@@ -67,7 +67,7 @@ class BTree {
         let cursor = find(key: row.id)
         let node = LeafNode(pager.getPage(Int(cursor.pageNum)))
         if cursor.cellNum < UInt32(node.cells.count),
-           node.key(cellNum: Int(cursor.cellNum)) == row.id
+           node.key(at: Int(cursor.cellNum)) == row.id
         {
             throw .duplicateKey
         }
@@ -98,15 +98,15 @@ class BTree {
             let node = LeafNode(page)
             print("\(indent)- leaf (size \(node.cells.count))")
             for i in 0 ..< node.cells.count {
-                print("\(indent)  - \(node.key(cellNum: i))")
+                print("\(indent)  - \(node.key(at: i))")
             }
         case .internal:
             let node = InternalNode(page)
             print("\(indent)- internal (size \(node.cells.count))")
             for i in 0 ..< node.cells.count {
-                let childPageNum = node.child(childNum: i)
+                let childPageNum = node.childPageNum(at: i)
                 printTree(pageNum: childPageNum, indentation: indentation + 1)
-                print("\(indent)  - key \(node.key(keyNum: i))")
+                print("\(indent)  - key \(node.key(at: i))")
             }
             printTree(pageNum: node.rightChild, indentation: indentation + 1)
         }
@@ -116,7 +116,7 @@ class BTree {
 
     private func row(at cursor: Cursor) -> Row {
         let page = pager.getPage(Int(cursor.pageNum))
-        let offset = LeafNode.valueOffset(cellNum: Int(cursor.cellNum))
+        let offset = LeafNode.valueOffset(at: Int(cursor.cellNum))
         return Row.deserialize(from: Data(page[offset ..< offset + Row.size]))
     }
 
@@ -145,7 +145,7 @@ class BTree {
         var onePastMaxIndex = count
         while minIndex < onePastMaxIndex {
             let index = (minIndex + onePastMaxIndex) / 2
-            let keyAtIndex = node.key(cellNum: index)
+            let keyAtIndex = node.key(at: index)
             if key == keyAtIndex {
                 return Cursor(pageNum: pageNum, cellNum: UInt32(index), endOfTable: false)
             }
@@ -161,7 +161,7 @@ class BTree {
     private func internalNodeFind(pageNum: UInt32, key: UInt32) -> Cursor {
         let node = InternalNode(pager.getPage(Int(pageNum)))
         let childIndex = node.findChildIndex(key: key)
-        let childPageNum = node.child(childNum: childIndex)
+        let childPageNum = node.childPageNum(at: childIndex)
         let childPage = pager.getPage(Int(childPageNum))
         switch nodeType(childPage) {
         case .leaf:
@@ -229,7 +229,7 @@ class BTree {
         if nodeType(leftChildPage) == .internal {
             let leftInternal = InternalNode(leftChildPage)
             for i in 0 ... leftInternal.cells.count {
-                let childPageNum = leftInternal.child(childNum: i)
+                let childPageNum = leftInternal.childPageNum(at: i)
                 var childPage = pager.getPage(Int(childPageNum))
                 setParent(&childPage, leftChildPageNum)
                 pager.setPage(Int(childPageNum), data: childPage)
@@ -246,7 +246,7 @@ class BTree {
         let index = node.findChildIndex(key: oldKey)
         // The rightmost child's max key is not stored in the parent's cells; nothing to update.
         guard index < node.cells.count else { return }
-        node.setKey(keyNum: index, newKey)
+        node.setKey(at: index, newKey)
         pager.setPage(Int(pageNum), data: node.data)
     }
 
@@ -293,7 +293,7 @@ class BTree {
             pager.setPage(newPageNum, data: newNode.data)
             try createNewRoot(rightChildPageNum: UInt32(newPageNum))
             let rootNode = InternalNode(pager.getPage(Int(rootPageNum)))
-            actualOldPageNum = rootNode.child(childNum: 0)
+            actualOldPageNum = rootNode.childPageNum(at: 0)
             grandparentPageNum = rootPageNum
         } else {
             actualOldPageNum = parentPageNum

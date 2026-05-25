@@ -110,9 +110,9 @@ struct LeafNode: BTreeNode {
         }
         cells = (0 ..< Int(numCells)).map { i in
             let key = data.withUnsafeBytes { ptr in
-                ptr.baseAddress!.loadUnaligned(fromByteOffset: LeafNode.keyOffset(cellNum: i), as: UInt32.self)
+                ptr.baseAddress!.loadUnaligned(fromByteOffset: LeafNode.keyOffset(at: i), as: UInt32.self)
             }
-            let valOff = LeafNode.valueOffset(cellNum: i)
+            let valOff = LeafNode.valueOffset(at: i)
             return (key: key, value: Data(data[valOff ..< valOff + Row.size]))
         }
     }
@@ -147,10 +147,10 @@ struct LeafNode: BTreeNode {
         }
         for (i, cell) in cells.enumerated() {
             withUnsafeBytes(of: cell.key) { src in
-                let off = LeafNode.keyOffset(cellNum: i)
+                let off = LeafNode.keyOffset(at: i)
                 out.replaceSubrange(off ..< off + LeafNode.keySize, with: src)
             }
-            let valOff = LeafNode.valueOffset(cellNum: i)
+            let valOff = LeafNode.valueOffset(at: i)
             out.replaceSubrange(valOff ..< valOff + Row.size, with: cell.value)
         }
         return out
@@ -158,26 +158,26 @@ struct LeafNode: BTreeNode {
 
     // MARK: Cell layout helpers (pure arithmetic — used by Cursor.value() and serialization)
 
-    static func cellOffset(cellNum: Int) -> Int {
-        headerSize + cellNum * cellSize
+    static func cellOffset(at index: Int) -> Int {
+        headerSize + index * cellSize
     }
 
-    static func keyOffset(cellNum: Int) -> Int {
-        cellOffset(cellNum: cellNum)
+    static func keyOffset(at index: Int) -> Int {
+        cellOffset(at: index)
     }
 
-    static func valueOffset(cellNum: Int) -> Int {
-        cellOffset(cellNum: cellNum) + keySize
+    static func valueOffset(at index: Int) -> Int {
+        cellOffset(at: index) + keySize
     }
 
     // MARK: Convenience accessors
 
-    func key(cellNum: Int) -> UInt32 {
-        cells[cellNum].key
+    func key(at index: Int) -> UInt32 {
+        cells[index].key
     }
 
-    mutating func setKey(cellNum: Int, key: UInt32) {
-        cells[cellNum].key = key
+    mutating func setKey(at index: Int, _ key: UInt32) {
+        cells[index].key = key
     }
 
     var maxKey: UInt32 {
@@ -310,20 +310,16 @@ struct InternalNode: BTreeNode {
         return lo
     }
 
-    func child(childNum: Int) -> UInt32 {
-        childNum == cells.count ? rightChild : cells[childNum].child
+    func childPageNum(at index: Int) -> UInt32 {
+        index == cells.count ? rightChild : cells[index].child
     }
 
-    mutating func setChild(childNum: Int, _ value: UInt32) {
-        if childNum == cells.count { rightChild = value } else { cells[childNum].child = value }
+    func key(at index: Int) -> UInt32 {
+        cells[index].key
     }
 
-    func key(keyNum: Int) -> UInt32 {
-        cells[keyNum].key
-    }
-
-    mutating func setKey(keyNum: Int, _ value: UInt32) {
-        cells[keyNum].key = value
+    mutating func setKey(at index: Int, _ key: UInt32) {
+        cells[index].key = key
     }
 
     var maxKey: UInt32 {
