@@ -16,25 +16,8 @@ private enum BTreeNodeLayout {
 
 // MARK: - Raw-Data helpers (module-internal)
 
-//
-// Used in BTree.swift when the concrete node type is not statically known
-// (e.g., updating a child's parent pointer after a split).
-
 func nodeType(_ data: Data) -> NodeType {
     NodeType(rawValue: data[BTreeNodeLayout.nodeTypeOffset])!
-}
-
-func setIsRoot(_ data: inout Data, _ value: Bool) {
-    data[BTreeNodeLayout.isRootOffset] = value ? 1 : 0
-}
-
-func setParent(_ data: inout Data, _ value: UInt32) {
-    withUnsafeBytes(of: value) { src in
-        data.replaceSubrange(
-            BTreeNodeLayout.parentPointerOffset ..< BTreeNodeLayout.parentPointerOffset + 4,
-            with: src,
-        )
-    }
 }
 
 // MARK: - BTreeNode protocol
