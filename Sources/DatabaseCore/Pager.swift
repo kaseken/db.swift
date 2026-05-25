@@ -5,7 +5,7 @@ enum PagerError: Error {
 }
 
 class Pager {
-    static let maxPages = 100
+    private static let maxPages = 100
     static let pageSize = 4096
 
     private let fileHandle: FileHandle
@@ -64,15 +64,19 @@ class Pager {
         pages[pageNum] = data
     }
 
-    func flush(pageNum: Int, numBytes: Int) {
-        guard let page = pages[pageNum] else {
-            return
+    func flushAll() {
+        for i in 0 ..< numPages {
+            flush(pageNum: i, numBytes: Pager.pageSize)
         }
-        fileHandle.seek(toFileOffset: UInt64(pageNum * Pager.pageSize))
-        fileHandle.write(page.prefix(numBytes))
     }
 
     func close() {
         fileHandle.closeFile()
+    }
+
+    private func flush(pageNum: Int, numBytes: Int) {
+        guard let page = pages[pageNum] else { return }
+        fileHandle.seek(toFileOffset: UInt64(pageNum * Pager.pageSize))
+        fileHandle.write(page.prefix(numBytes))
     }
 }

@@ -38,15 +38,16 @@ struct PagerTests {
         #expect(pager.getPage(0)[0] == 0xFF)
     }
 
-    @Test func `flush persists data that can be read back after reopening`() throws {
+    @Test func `flushAll persists data that can be read back after reopening`() throws {
         let path = makeTempPath()
         defer { try? FileManager.default.removeItem(atPath: path) }
 
         var page = Data(count: Pager.pageSize)
         page[0] = 0x42
         let pager = try Pager(filename: path)
+        _ = pager.getPage(0)
         pager.setPage(0, data: page)
-        pager.flush(pageNum: 0, numBytes: Pager.pageSize)
+        pager.flushAll()
         pager.close()
 
         let pager2 = try Pager(filename: path)
@@ -55,12 +56,12 @@ struct PagerTests {
         #expect(pager2.getPage(0)[0] == 0x42)
     }
 
-    @Test func `flush on uncached page does not write to file`() throws {
+    @Test func `flushAll on empty pager does not write to file`() throws {
         let path = makeTempPath()
         defer { try? FileManager.default.removeItem(atPath: path) }
         let pager = try Pager(filename: path)
         defer { pager.close() }
-        pager.flush(pageNum: 0, numBytes: Pager.pageSize)
+        pager.flushAll()
         #expect(pager.diskFileLength == 0)
     }
 

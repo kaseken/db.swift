@@ -42,9 +42,7 @@ class BTree {
     func close() {
         guard !isClosed else { return }
         isClosed = true
-        for i in 0 ..< pager.numPages {
-            pager.flush(pageNum: i, numBytes: Pager.pageSize)
-        }
+        pager.flushAll()
         pager.close()
     }
 
