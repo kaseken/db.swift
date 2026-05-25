@@ -195,6 +195,8 @@ class BTree {
             let parentPageNum = oldNode.parent
             let newMaxKey = getNodeMaxKey(oldNode.data)
             updateInternalNodeKey(pageNum: parentPageNum, oldKey: oldMaxKey, newKey: newMaxKey)
+            newNode.parent = parentPageNum
+            pager.setPage(newPageNum, data: newNode.data)
             try internalNodeInsert(parentPageNum: parentPageNum, childPageNum: UInt32(newPageNum))
         }
     }
