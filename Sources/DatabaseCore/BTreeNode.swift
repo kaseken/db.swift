@@ -14,10 +14,18 @@ private enum BTreeNodeLayout {
     static let headerSize = 6
 }
 
-// MARK: - Raw-Data helpers (module-internal)
+// MARK: - BTreeNodeFactory
 
-func nodeType(_ data: Data) -> NodeType {
-    NodeType(rawValue: data[BTreeNodeLayout.nodeTypeOffset])!
+enum BTreeNodeFactory {
+    case leaf(LeafNode)
+    case `internal`(InternalNode)
+
+    static func build(_ data: Data) -> BTreeNodeFactory {
+        switch NodeType(rawValue: data[BTreeNodeLayout.nodeTypeOffset])! {
+        case .leaf: .leaf(LeafNode(data))
+        case .internal: .internal(InternalNode(data))
+        }
+    }
 }
 
 // MARK: - BTreeNode protocol
@@ -309,15 +317,5 @@ struct InternalNode: BTreeNode {
 
     var maxKey: UInt32 {
         cells.last!.key
-    }
-}
-
-// MARK: - nodeMaxKey
-
-/// Returns the maximum key stored directly in a page's key fields (non-recursive).
-func nodeMaxKey(_ data: Data) -> UInt32 {
-    switch nodeType(data) {
-    case .leaf: LeafNode(data).maxKey
-    case .internal: InternalNode(data).maxKey
     }
 }

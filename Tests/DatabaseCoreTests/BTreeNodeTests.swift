@@ -232,22 +232,22 @@ struct InternalNodeTests {
     }
 }
 
-// MARK: - nodeMaxKey
+// MARK: - maxKey
 
 struct NodeMaxKeyTests {
-    @Test func `nodeMaxKey on leaf`() {
+    @Test func `maxKey on leaf`() {
         var node = LeafNode.makeNew()
         node.cells = [
             (key: 10, value: Data(count: Row.size)),
             (key: 20, value: Data(count: Row.size)),
             (key: 30, value: Data(count: Row.size)),
         ]
-        #expect(nodeMaxKey(node.data) == 30)
+        #expect(node.maxKey == 30)
     }
 
-    @Test func `nodeMaxKey on internal`() {
+    @Test func `maxKey on internal`() {
         var node = InternalNode.makeNew()
         node.cells = [(child: 0, key: 50), (child: 0, key: 100)]
-        #expect(nodeMaxKey(node.data) == 100)
+        #expect(node.maxKey == 100)
     }
 }

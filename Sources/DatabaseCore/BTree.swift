@@ -40,7 +40,7 @@ class BTree {
 
     private func find(key: UInt32) -> Cursor {
         let page = pager.getPage(Int(rootPageNum))
-        switch nodeType(page) {
+        switch BTreeNodeFactory.build(page) {
         case .leaf:
             return leafNodeFind(pageNum: rootPageNum, key: key)
         case .internal:
@@ -93,15 +93,13 @@ class BTree {
     func printTree(pageNum: UInt32 = 0, indentation: Int = 0) {
         let page = pager.getPage(Int(pageNum))
         let indent = String(repeating: "  ", count: indentation)
-        switch nodeType(page) {
-        case .leaf:
-            let node = LeafNode(page)
+        switch BTreeNodeFactory.build(page) {
+        case let .leaf(node):
             print("\(indent)- leaf (size \(node.cells.count))")
             for i in 0 ..< node.cells.count {
                 print("\(indent)  - \(node.key(at: i))")
             }
-        case .internal:
-            let node = InternalNode(page)
+        case let .internal(node):
             print("\(indent)- internal (size \(node.cells.count))")
             for i in 0 ..< node.cells.count {
                 let childPageNum = node.childPageNum(at: i)
@@ -163,7 +161,7 @@ class BTree {
         let childIndex = node.findChildIndex(key: key)
         let childPageNum = node.childPageNum(at: childIndex)
         let childPage = pager.getPage(Int(childPageNum))
-        switch nodeType(childPage) {
+        switch BTreeNodeFactory.build(childPage) {
         case .leaf:
             return leafNodeFind(pageNum: childPageNum, key: key)
         case .internal:
@@ -202,12 +200,11 @@ class BTree {
     }
 
     private func getNodeMaxKey(_ data: Data) -> UInt32 {
-        switch nodeType(data) {
-        case .leaf:
-            return LeafNode(data).maxKey
-        case .internal:
-            let node = InternalNode(data)
-            return getNodeMaxKey(pager.getPage(Int(node.rightmostChildPageNum)))
+        switch BTreeNodeFactory.build(data) {
+        case let .leaf(node):
+            node.maxKey
+        case let .internal(node):
+            getNodeMaxKey(pager.getPage(Int(node.rightmostChildPageNum)))
         }
     }
 
@@ -216,14 +213,12 @@ class BTree {
         let oldRootPage = pager.getPage(Int(rootPageNum))
         let maxLeftKey = getNodeMaxKey(oldRootPage)
 
-        switch nodeType(oldRootPage) {
-        case .leaf:
-            var node = LeafNode(oldRootPage)
+        switch BTreeNodeFactory.build(oldRootPage) {
+        case var .leaf(node):
             node.isRoot = false
             node.parentPageNum = rootPageNum
             pager.setPage(Int(leftChildPageNum), data: node.data)
-        case .internal:
-            var node = InternalNode(oldRootPage)
+        case var .internal(node):
             node.isRoot = false
             node.parentPageNum = rootPageNum
             pager.setPage(Int(leftChildPageNum), data: node.data)
@@ -243,13 +238,11 @@ class BTree {
 
     private func updateParentPageNum(of pageNum: Int, to parentPageNum: UInt32) {
         let page = pager.getPage(pageNum)
-        switch nodeType(page) {
-        case .leaf:
-            var node = LeafNode(page)
+        switch BTreeNodeFactory.build(page) {
+        case var .leaf(node):
             node.parentPageNum = parentPageNum
             pager.setPage(pageNum, data: node.data)
-        case .internal:
-            var node = InternalNode(page)
+        case var .internal(node):
             node.parentPageNum = parentPageNum
             pager.setPage(pageNum, data: node.data)
         }
