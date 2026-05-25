@@ -60,20 +60,17 @@ struct CursorTests {
         #expect(cursor.endOfTable == true)
     }
 
-    @Test func `value returns correct pageIndex and byteOffset`() throws {
+    @Test func `next returns correct row`() throws {
         let (table, path) = try makeTempTable()
         defer {
             table.close()
             try? FileManager.default.removeItem(atPath: path)
         }
-        let c0 = Cursor(btree: table.btree, pageNum: 0, cellNum: 0, endOfTable: false)
-        #expect(c0.value() == (pageIndex: 0, byteOffset: LeafNode.valueOffset(cellNum: 0)))
-
-        let c1 = Cursor(btree: table.btree, pageNum: 0, cellNum: 1, endOfTable: false)
-        #expect(c1.value() == (pageIndex: 0, byteOffset: LeafNode.valueOffset(cellNum: 1)))
-
-        let c12 = Cursor(btree: table.btree, pageNum: 0, cellNum: 12, endOfTable: false)
-        #expect(c12.value() == (pageIndex: 0, byteOffset: LeafNode.valueOffset(cellNum: 12)))
+        let expected = Row(id: 1, username: "alice", email: "alice@example.com")
+        table.insert(row: expected)
+        table.insert(row: Row(id: 2, username: "bob", email: "bob@example.com"))
+        var cursor = table.btree.start()
+        #expect(cursor.next() == expected)
     }
 
     @Test func `advance progresses to next cell`() throws {
@@ -84,7 +81,7 @@ struct CursorTests {
         }
         table.insert(row: Row(id: 1, username: "a", email: "a@example.com"))
         table.insert(row: Row(id: 2, username: "b", email: "b@example.com"))
-        let cursor = table.btree.start()
+        var cursor = table.btree.start()
         #expect(cursor.cellNum == 0)
         cursor.advance()
         #expect(cursor.cellNum == 1)
@@ -206,7 +203,7 @@ struct CursorTests {
             try? FileManager.default.removeItem(atPath: path)
         }
         table.insert(row: Row(id: 1, username: "a", email: "a@example.com"))
-        let cursor = table.btree.start()
+        var cursor = table.btree.start()
         cursor.advance()
         #expect(cursor.endOfTable == true)
     }

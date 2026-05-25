@@ -7,7 +7,6 @@ public enum ExecuteResult {
 
 public class Table {
     let btree: BTree
-
     public init(filename: String, internalNodeMaxCells: Int? = nil) throws {
         let pager = try Pager(filename: filename)
         let maxCells = internalNodeMaxCells
@@ -16,35 +15,15 @@ public class Table {
     }
 
     public func close() {
-        for i in 0 ..< btree.pager.numPages {
-            btree.pager.flush(pageNum: i, numBytes: Pager.pageSize)
-        }
-        btree.pager.close()
+        btree.close()
     }
 
     @discardableResult
     public func insert(row: Row) -> ExecuteResult {
-        let cursor = btree.find(key: row.id)
-        let node = LeafNode(btree.pager.getPage(Int(cursor.pageNum)))
-        if cursor.cellNum < UInt32(node.cells.count) {
-            if node.key(cellNum: Int(cursor.cellNum)) == row.id {
-                return .duplicateKey
-            }
-        }
-        btree.leafNodeInsert(cursor: cursor, key: row.id, row: row)
-        return .success
+        btree.insert(row: row)
     }
 
     public func select() -> [Row] {
-        let cursor = btree.start()
-        var rows: [Row] = []
-        while !cursor.endOfTable {
-            let (pageIndex, byteOffset) = cursor.value()
-            let page = btree.pager.getPage(pageIndex)
-            let slice = Data(page[byteOffset ..< byteOffset + Row.size])
-            rows.append(Row.deserialize(from: slice))
-            cursor.advance()
-        }
-        return rows
+        Array(btree.rows)
     }
 }

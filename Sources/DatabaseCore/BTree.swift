@@ -1,9 +1,10 @@
 import Foundation
 
 class BTree {
-    let rootPageNum: UInt32 = 0
+    private let rootPageNum: UInt32 = 0
     let pager: Pager
-    let internalNodeMaxCells: Int
+    private let internalNodeMaxCells: Int
+    private var isClosed = false
 
     init(pager: Pager, internalNodeMaxCells: Int) {
         self.pager = pager
@@ -22,6 +23,10 @@ class BTree {
         find(key: 0)
     }
 
+    var rows: some Sequence<Row> {
+        start()
+    }
+
     func find(key: UInt32) -> Cursor {
         let page = pager.getPage(Int(rootPageNum))
         switch nodeType(page) {
@@ -32,7 +37,34 @@ class BTree {
         }
     }
 
+    // MARK: - Lifecycle
+
+    func close() {
+        guard !isClosed else { return }
+        isClosed = true
+        for i in 0 ..< pager.numPages {
+            pager.flush(pageNum: i, numBytes: Pager.pageSize)
+        }
+        pager.close()
+    }
+
+    deinit {
+        close()
+    }
+
     // MARK: - Mutation
+
+    func insert(row: Row) -> ExecuteResult {
+        let cursor = find(key: row.id)
+        let node = LeafNode(pager.getPage(Int(cursor.pageNum)))
+        if cursor.cellNum < UInt32(node.cells.count),
+           node.key(cellNum: Int(cursor.cellNum)) == row.id
+        {
+            return .duplicateKey
+        }
+        leafNodeInsert(cursor: cursor, key: row.id, row: row)
+        return .success
+    }
 
     func leafNodeInsert(cursor: Cursor, key: UInt32, row: Row) {
         var node = LeafNode(pager.getPage(Int(cursor.pageNum)))

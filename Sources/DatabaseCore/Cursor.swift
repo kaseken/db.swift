@@ -1,21 +1,21 @@
-public class Cursor {
+import Foundation
+
+struct Cursor: IteratorProtocol, Sequence {
     let btree: BTree
-    public var pageNum: UInt32
-    public var cellNum: UInt32
-    public var endOfTable: Bool
+    var pageNum: UInt32
+    var cellNum: UInt32
+    var endOfTable: Bool
 
-    init(btree: BTree, pageNum: UInt32, cellNum: UInt32, endOfTable: Bool) {
-        self.btree = btree
-        self.pageNum = pageNum
-        self.cellNum = cellNum
-        self.endOfTable = endOfTable
+    mutating func next() -> Row? {
+        guard !endOfTable else { return nil }
+        let page = btree.pager.getPage(Int(pageNum))
+        let offset = LeafNode.valueOffset(cellNum: Int(cellNum))
+        let row = Row.deserialize(from: Data(page[offset ..< offset + Row.size]))
+        advance()
+        return row
     }
 
-    func value() -> (pageIndex: Int, byteOffset: Int) {
-        (Int(pageNum), LeafNode.valueOffset(cellNum: Int(cellNum)))
-    }
-
-    func advance() {
+    mutating func advance() {
         let node = LeafNode(btree.pager.getPage(Int(pageNum)))
         cellNum += 1
         if cellNum >= UInt32(node.cells.count) {
