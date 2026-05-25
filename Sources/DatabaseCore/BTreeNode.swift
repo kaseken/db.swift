@@ -226,6 +226,7 @@ struct InternalNode: BTreeNode {
     private static let keySize = 4
     private static let childSize = 4
     static let cellSize = childSize + keySize // 8
+    static let maxCells = (Pager.pageSize - headerSize) / cellSize
 
     // MARK: Initializers
 

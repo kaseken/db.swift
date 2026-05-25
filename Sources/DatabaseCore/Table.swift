@@ -7,11 +7,10 @@ public enum ExecuteResult {
 
 public class Table {
     let btree: BTree
-    public init(filename: String, internalNodeMaxCells: Int? = nil) throws {
+
+    public init(filename: String) throws {
         let pager = try Pager(filename: filename)
-        let maxCells = internalNodeMaxCells
-            ?? (Pager.pageSize - InternalNode.headerSize) / InternalNode.cellSize
-        btree = BTree(pager: pager, internalNodeMaxCells: maxCells)
+        btree = BTree(pager: pager)
     }
 
     public func close() {

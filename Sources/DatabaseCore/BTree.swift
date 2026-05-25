@@ -6,7 +6,7 @@ class BTree {
     private let internalNodeMaxCells: Int
     private var isClosed = false
 
-    init(pager: Pager, internalNodeMaxCells: Int) {
+    init(pager: Pager, internalNodeMaxCells: Int = InternalNode.maxCells) {
         self.pager = pager
         self.internalNodeMaxCells = internalNodeMaxCells
         if pager.numPages == 0 {

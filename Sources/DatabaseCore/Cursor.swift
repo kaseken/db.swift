@@ -1,10 +1,17 @@
 import Foundation
 
 struct Cursor: IteratorProtocol, Sequence {
-    let btree: BTree
-    var pageNum: UInt32
-    var cellNum: UInt32
-    var endOfTable: Bool
+    private let btree: BTree
+    private(set) var pageNum: UInt32
+    private(set) var cellNum: UInt32
+    private(set) var endOfTable: Bool
+
+    init(btree: BTree, pageNum: UInt32, cellNum: UInt32, endOfTable: Bool) {
+        self.btree = btree
+        self.pageNum = pageNum
+        self.cellNum = cellNum
+        self.endOfTable = endOfTable
+    }
 
     mutating func next() -> Row? {
         guard !endOfTable else { return nil }

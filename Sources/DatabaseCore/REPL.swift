@@ -59,7 +59,7 @@ public struct REPL {
                 continue
             }
 
-            switch Statement.prepare(line) {
+            switch Statement.parse(line) {
             case let .success(statement):
                 switch statement.execute(on: table) {
                 case .success: print("Executed.")
