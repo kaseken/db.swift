@@ -21,6 +21,7 @@ struct InternalNode: BTreeNode {
 
     var isRoot: Bool
     var parentPageNum: UInt32
+    let pageNum: UInt32
     /// Stored cells. Each element holds a child page number and its separator key.
     var cells: [(child: UInt32, key: UInt32)]
     /// Page number of the rightmost child, which holds all keys greater than
@@ -45,39 +46,52 @@ struct InternalNode: BTreeNode {
 
     // MARK: Initializers
 
-    init(_ data: Data) {
-        isRoot = data[BTreeNodeLayout.isRootOffset] != 0
-        parentPageNum = data.withUnsafeBytes { ptr in
+    /// Pattern 1: allocate a new page from pager and initialize to defaults.
+    init(pager: Pager) throws(PagerError) {
+        let page = try pager.allocatePage()
+        pageNum = page.pageNum
+        isRoot = false
+        parentPageNum = 0
+        cells = []
+        rightmostChildPageNum = InternalNode.invalidPageNum
+    }
+
+    /// Pattern 2: restore from an already-allocated page.
+    static func restore(from page: Page) -> InternalNode {
+        InternalNode(restoring: page)
+    }
+
+    /// Internal only — for creating a blank node at a known page (e.g. createNewRoot overwriting page 0).
+    init(pageNum: UInt32) {
+        self.pageNum = pageNum
+        isRoot = false
+        parentPageNum = 0
+        cells = []
+        rightmostChildPageNum = InternalNode.invalidPageNum
+    }
+
+    private init(restoring page: Page) {
+        pageNum = page.pageNum
+        isRoot = page.data[BTreeNodeLayout.isRootOffset] != 0
+        parentPageNum = page.data.withUnsafeBytes { ptr in
             ptr.baseAddress!.loadUnaligned(fromByteOffset: BTreeNodeLayout.parentPointerOffset, as: UInt32.self)
         }
-        let numKeys = data.withUnsafeBytes { ptr in
+        let numKeys = page.data.withUnsafeBytes { ptr in
             ptr.baseAddress!.loadUnaligned(fromByteOffset: InternalNode.numKeysOffset, as: UInt32.self)
         }
-        rightmostChildPageNum = data.withUnsafeBytes { ptr in
+        rightmostChildPageNum = page.data.withUnsafeBytes { ptr in
             ptr.baseAddress!.loadUnaligned(fromByteOffset: InternalNode.rightmostChildPageNumOffset, as: UInt32.self)
         }
         cells = (0 ..< Int(numKeys)).map { i in
             let off = InternalNode.cellOffset(cellNum: i)
-            let child = data.withUnsafeBytes { ptr in
+            let child = page.data.withUnsafeBytes { ptr in
                 ptr.baseAddress!.loadUnaligned(fromByteOffset: off, as: UInt32.self)
             }
-            let key = data.withUnsafeBytes { ptr in
+            let key = page.data.withUnsafeBytes { ptr in
                 ptr.baseAddress!.loadUnaligned(fromByteOffset: off + InternalNode.childSize, as: UInt32.self)
             }
             return (child: child, key: key)
         }
-    }
-
-    /// Returns a new, empty internal node.
-    static func makeNew() -> InternalNode {
-        InternalNode(isRoot: false, parent: 0, cells: [], rightmostChildPageNum: InternalNode.invalidPageNum)
-    }
-
-    private init(isRoot: Bool, parent: UInt32, cells: [(child: UInt32, key: UInt32)], rightmostChildPageNum: UInt32) {
-        self.isRoot = isRoot
-        parentPageNum = parent
-        self.cells = cells
-        self.rightmostChildPageNum = rightmostChildPageNum
     }
 
     // MARK: Serialization

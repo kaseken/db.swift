@@ -1,5 +1,10 @@
 import Foundation
 
+struct Page {
+    let pageNum: UInt32
+    let data: Data
+}
+
 enum PagerError: Error, Equatable {
     case cannotOpenFile(String)
     case tableFull
@@ -32,9 +37,9 @@ class Pager {
         pages = Array(repeating: nil, count: Pager.maxPages)
     }
 
-    func getPage(_ pageNum: Int) throws(PagerError) -> Data {
+    func getPage(_ pageNum: Int) throws(PagerError) -> Page {
         if let cached = pages[pageNum] {
-            return cached
+            return Page(pageNum: UInt32(pageNum), data: cached)
         }
         // Pages are stored sequentially in the file: page 0 at offset 0, page 1 at offset 4096, etc.
         let pageOffset = pageNum * Pager.pageSize
@@ -44,25 +49,26 @@ class Pager {
         fileHandle.seek(toFileOffset: UInt64(pageOffset))
         // For full pages this equals pageSize; for the last partial page it is smaller
         let bytesToRead = min(Pager.pageSize, diskFileLength - pageOffset)
-        var page = fileHandle.readData(ofLength: bytesToRead)
+        var data = fileHandle.readData(ofLength: bytesToRead)
         // Pad the last partial page with zeros so every cached page is always pageSize bytes
-        if page.count < Pager.pageSize {
-            page.append(Data(count: Pager.pageSize - page.count))
+        if data.count < Pager.pageSize {
+            data.append(Data(count: Pager.pageSize - data.count))
         }
-        pages[pageNum] = page
-        return page
+        pages[pageNum] = data
+        return Page(pageNum: UInt32(pageNum), data: data)
     }
 
     func setPage(_ pageNum: Int, data: Data) {
         pages[pageNum] = data
     }
 
-    func allocatePage() throws(PagerError) -> Int {
+    func allocatePage() throws(PagerError) -> Page {
         guard numPages < Pager.maxPages else { throw .tableFull }
         let pageNum = numPages
         numPages += 1
-        pages[pageNum] = Data(count: Pager.pageSize)
-        return pageNum
+        let data = Data(count: Pager.pageSize)
+        pages[pageNum] = data
+        return Page(pageNum: UInt32(pageNum), data: data)
     }
 
     func flushAll() {

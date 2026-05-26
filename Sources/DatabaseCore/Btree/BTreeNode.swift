@@ -19,10 +19,10 @@ enum BTreeNodeFactory {
     case leaf(LeafNode)
     case `internal`(InternalNode)
 
-    static func build(_ data: Data) -> BTreeNodeFactory {
-        switch NodeType(rawValue: data[BTreeNodeLayout.nodeTypeOffset])! {
-        case .leaf: .leaf(LeafNode(data))
-        case .internal: .internal(InternalNode(data))
+    static func restore(from page: Page) -> BTreeNodeFactory {
+        switch NodeType(rawValue: page.data[BTreeNodeLayout.nodeTypeOffset])! {
+        case .leaf: .leaf(LeafNode.restore(from: page))
+        case .internal: .internal(InternalNode.restore(from: page))
         }
     }
 }
@@ -33,7 +33,12 @@ protocol BTreeNode {
     var nodeType: NodeType { get }
     var isRoot: Bool { get set }
     var parentPageNum: UInt32 { get set }
+    /// In-memory only. Not serialized into `data`.
+    var pageNum: UInt32 { get }
     /// Serialized page representation, ready to write to the Pager.
     var data: Data { get }
-    init(_ data: Data)
+    /// Pattern 1: allocate a new page from pager and initialize to defaults.
+    init(pager: Pager) throws(PagerError)
+    /// Pattern 2: restore from an already-allocated page.
+    static func restore(from page: Page) -> Self
 }

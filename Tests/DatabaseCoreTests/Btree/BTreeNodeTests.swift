@@ -2,6 +2,22 @@
 import Foundation
 import Testing
 
+// MARK: - Test helpers
+
+private extension LeafNode {
+    /// Convenience for tests that only need a blank leaf with no pager.
+    static func makeNew() -> LeafNode {
+        LeafNode(pageNum: 0)
+    }
+}
+
+private extension InternalNode {
+    /// Convenience for tests that only need a blank internal node with no pager.
+    static func makeNew() -> InternalNode {
+        InternalNode(pageNum: 0)
+    }
+}
+
 struct BTreeNodeTests {
     // MARK: - Constants
 
@@ -128,7 +144,7 @@ struct BTreeNodeTests {
             (key: 20, value: Data(repeating: 0xCD, count: Row.size)),
         ]
         node.nextLeafPageNum = 7
-        let restored = LeafNode(node.data)
+        let restored = LeafNode.restore(from: Page(pageNum: node.pageNum, data: node.data))
         #expect(restored.isRoot == true)
         #expect(restored.nextLeafPageNum == 7)
         #expect(restored.cells.count == 2)
@@ -222,7 +238,7 @@ struct InternalNodeTests {
         node.isRoot = true
         node.cells = [(child: 3, key: 50), (child: 4, key: 100)]
         node.rightmostChildPageNum = 5
-        let restored = InternalNode(node.data)
+        let restored = InternalNode.restore(from: Page(pageNum: node.pageNum, data: node.data))
         #expect(restored.isRoot == true)
         #expect(restored.cells.count == 2)
         #expect(restored.cells[0].child == 3)
