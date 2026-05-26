@@ -10,7 +10,7 @@ public class Table {
 
     public init(filename: String) throws {
         let pager = try Pager(filename: filename)
-        btree = BTree(pager: pager)
+        btree = try BTree(pager: pager)
     }
 
     public func close() {

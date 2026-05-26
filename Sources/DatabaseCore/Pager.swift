@@ -1,8 +1,14 @@
 import Foundation
 
-enum PagerError: Error {
+struct Page {
+    let pageNum: UInt32
+    let data: Data
+}
+
+enum PagerError: Error, Equatable {
     case cannotOpenFile(String)
     case tableFull
+    case pageNotAllocated(Int)
 }
 
 class Pager {
@@ -12,9 +18,8 @@ class Pager {
     private let fileHandle: FileHandle
     /// The file size at the time this Pager was opened. Used only during cache-miss
     /// to determine whether a page already exists on disk or needs to be freshly allocated.
-    let diskFileLength: Int
+    private let diskFileLength: Int
     /// The number of pages allocated so far.
-    /// Increases when getPage is called for a page beyond the current end of file.
     private(set) var numPages: Int
     private var pages: [Data?]
 
@@ -32,45 +37,38 @@ class Pager {
         pages = Array(repeating: nil, count: Pager.maxPages)
     }
 
-    func getPage(_ pageNum: Int) -> Data {
+    func getPage(_ pageNum: Int) throws(PagerError) -> Page {
         if let cached = pages[pageNum] {
-            return cached
+            return Page(pageNum: UInt32(pageNum), data: cached)
         }
         // Pages are stored sequentially in the file: page 0 at offset 0, page 1 at offset 4096, etc.
         let pageOffset = pageNum * Pager.pageSize
         guard pageOffset < diskFileLength else {
-            // Page is beyond the end of the file — allocate a blank page
-            // TODO: Non-sequential page allocation (pageNum > numPages) leaves gaps in numPages tracking.
-            // Pages in the gap are nil in cache and skipped on flush, corrupting the file.
-            // This must be fixed before implementing leaf node splits.
-            assert(pageNum == numPages, "Non-sequential page allocation: pageNum=\(pageNum), numPages=\(numPages)")
-            numPages = pageNum + 1
-            let page = Data(count: Pager.pageSize)
-            pages[pageNum] = page
-            return page
+            throw PagerError.pageNotAllocated(pageNum)
         }
         fileHandle.seek(toFileOffset: UInt64(pageOffset))
         // For full pages this equals pageSize; for the last partial page it is smaller
         let bytesToRead = min(Pager.pageSize, diskFileLength - pageOffset)
-        var page = fileHandle.readData(ofLength: bytesToRead)
+        var data = fileHandle.readData(ofLength: bytesToRead)
         // Pad the last partial page with zeros so every cached page is always pageSize bytes
-        if page.count < Pager.pageSize {
-            page.append(Data(count: Pager.pageSize - page.count))
+        if data.count < Pager.pageSize {
+            data.append(Data(count: Pager.pageSize - data.count))
         }
-        pages[pageNum] = page
-        return page
+        pages[pageNum] = data
+        return Page(pageNum: UInt32(pageNum), data: data)
     }
 
     func setPage(_ pageNum: Int, data: Data) {
         pages[pageNum] = data
     }
 
-    func allocatePage() throws(PagerError) -> Int {
+    func allocatePage() throws(PagerError) -> Page {
         guard numPages < Pager.maxPages else { throw .tableFull }
         let pageNum = numPages
         numPages += 1
-        pages[pageNum] = Data(count: Pager.pageSize)
-        return pageNum
+        let data = Data(count: Pager.pageSize)
+        pages[pageNum] = data
+        return Page(pageNum: UInt32(pageNum), data: data)
     }
 
     func flushAll() {
