@@ -37,8 +37,4 @@ protocol BTreeNode {
     var pageNum: UInt32 { get }
     /// Serialized page representation, ready to write to the Pager.
     var data: Data { get }
-    /// Pattern 1: allocate a new page from pager and initialize to defaults.
-    init(pager: Pager) throws(PagerError)
-    /// Pattern 2: restore from an already-allocated page.
-    static func restore(from page: Page) -> Self
 }

@@ -12,12 +12,14 @@ class BTree {
         var endOfTable: Bool
     }
 
+    /// - Parameter internalNodeMaxCells: For testing only. Defaults to `InternalNode.maxCells`.
     init(pager: Pager, internalNodeMaxCells: Int = InternalNode.maxCells) throws(PagerError) {
         self.pager = pager
         self.internalNodeMaxCells = internalNodeMaxCells
+        // If the database is new, initialize the tree with an empty root leaf node.
         if pager.numPages == 0 {
-            var root = try LeafNode(pager: pager)
-            root.isRoot = true
+            let page = try pager.allocatePage()
+            let root = LeafNode(pageNum: page.pageNum, isRoot: true, parentPageNum: 0, nextLeafPageNum: 0, cells: [])
             pager.setPage(Int(root.pageNum), data: root.data)
         }
     }
@@ -135,16 +137,21 @@ class BTree {
         var oldNode = cursor.node
         let oldMaxKey = getNodeMaxKey(pageNum: oldNode.pageNum)
         let oldNextLeaf = oldNode.nextLeafPageNum
-        var newNode = try LeafNode(pager: pager)
-
         var allCells = oldNode.cells
         allCells.insert((key: key, value: row.serialize()), at: Int(cursor.cellNum))
 
         oldNode.cells = Array(allCells[0 ..< LeafNode.leftSplitCount])
-        newNode.cells = Array(allCells[LeafNode.leftSplitCount...])
+        let newParentPageNum: UInt32 = oldNode.isRoot ? 0 : oldNode.parentPageNum
+        let newPage = try pager.allocatePage()
+        let newNode = LeafNode(
+            pageNum: newPage.pageNum,
+            isRoot: false,
+            parentPageNum: newParentPageNum,
+            nextLeafPageNum: oldNextLeaf,
+            cells: Array(allCells[LeafNode.leftSplitCount...]),
+        )
 
         oldNode.nextLeafPageNum = newNode.pageNum
-        newNode.nextLeafPageNum = oldNextLeaf
         pager.setPage(Int(oldNode.pageNum), data: oldNode.data)
         pager.setPage(Int(newNode.pageNum), data: newNode.data)
 
@@ -154,8 +161,6 @@ class BTree {
             let parentPageNum = oldNode.parentPageNum
             let newMaxKey = getNodeMaxKey(pageNum: oldNode.pageNum)
             updateInternalNodeKey(pageNum: parentPageNum, oldKey: oldMaxKey, newKey: newMaxKey)
-            newNode.parentPageNum = parentPageNum
-            pager.setPage(Int(newNode.pageNum), data: newNode.data)
             try internalNodeInsert(parentPageNum: parentPageNum, childPageNum: newNode.pageNum)
         }
     }

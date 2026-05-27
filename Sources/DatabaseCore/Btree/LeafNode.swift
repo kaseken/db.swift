@@ -51,11 +51,17 @@ struct LeafNode: BTreeNode {
     /// Pattern 1: allocate a new page from pager and initialize to defaults.
     init(pager: Pager) throws(PagerError) {
         let page = try pager.allocatePage()
-        pageNum = page.pageNum
-        isRoot = false
-        parentPageNum = 0
-        nextLeafPageNum = 0
-        cells = []
+        self.init(pageNum: page.pageNum, isRoot: false, parentPageNum: 0, nextLeafPageNum: 0, cells: [])
+    }
+
+    init(pageNum: UInt32, isRoot: Bool, parentPageNum: UInt32,
+         nextLeafPageNum: UInt32, cells: [(key: UInt32, value: Data)])
+    {
+        self.pageNum = pageNum
+        self.isRoot = isRoot
+        self.parentPageNum = parentPageNum
+        self.nextLeafPageNum = nextLeafPageNum
+        self.cells = cells
     }
 
     /// Pattern 2: restore from an already-allocated page.
