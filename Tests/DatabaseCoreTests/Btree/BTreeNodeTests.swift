@@ -7,20 +7,18 @@ import Testing
 private extension LeafNode {
     /// Convenience for tests that only need a blank leaf with no pager.
     static func makeNew() -> LeafNode {
-        LeafNode(pageNum: 0, isRoot: false, parentPageNum: 0, nextLeafPageNum: 0, cells: [])
+        LeafNode(pageNum: 0, parentPageNum: 0, nextLeafPageNum: 0, cells: [])
     }
 }
 
 private extension InternalNode {
     /// Convenience for tests that only need a blank internal node with no pager.
     static func makeNew() -> InternalNode {
-        InternalNode(pageNum: 0)
+        InternalNode(pageNum: 0, parentPageNum: 0, cells: [], rightmostChildPageNum: nil)
     }
 }
 
 struct BTreeNodeTests {
-    // MARK: - Constants
-
     // MARK: - makeNew
 
     @Test func `makeNew sets node type to leaf`() {
@@ -49,33 +47,33 @@ struct BTreeNodeTests {
         #expect(node.cells.count == 7)
     }
 
-    // MARK: - isRoot
+    // MARK: - parent
 
-    @Test func `isRoot defaults to false after makeNew`() {
+    @Test func `parentPageNum defaults to 0 after makeNew`() {
         let node = LeafNode.makeNew()
-        #expect(node.isRoot == false)
+        #expect(node.parentPageNum == 0)
     }
 
-    @Test func `isRoot round-trip`() {
+    @Test func `parentPageNum round-trip`() {
         var node = LeafNode.makeNew()
-        node.isRoot = true
-        #expect(node.isRoot == true)
-        node.isRoot = false
-        #expect(node.isRoot == false)
+        node.parentPageNum = nil
+        #expect(node.parentPageNum == nil)
+        node.parentPageNum = 5
+        #expect(node.parentPageNum == 5)
     }
 
     // MARK: - Serialization round-trip
 
     @Test func `data round-trip preserves cells`() {
         var node = LeafNode.makeNew()
-        node.isRoot = true
+        node.parentPageNum = nil
         node.cells = [
             (key: 10, value: Data(repeating: 0xAB, count: Row.size)),
             (key: 20, value: Data(repeating: 0xCD, count: Row.size)),
         ]
         node.nextLeafPageNum = 7
         let restored = LeafNode.restore(from: Page(pageNum: node.pageNum, data: node.data))
-        #expect(restored.isRoot == true)
+        #expect(restored.parentPageNum == nil)
         #expect(restored.nextLeafPageNum == 7)
         #expect(restored.cells.count == 2)
         #expect(restored.cells[0].key == 10)
@@ -91,9 +89,9 @@ struct InternalNodeTests {
         #expect(node.nodeType == .internal)
     }
 
-    @Test func `InternalNode makeNew sets isRoot to false`() {
+    @Test func `InternalNode makeNew sets parentPageNum to 0`() {
         let node = InternalNode.makeNew()
-        #expect(node.isRoot == false)
+        #expect(node.parentPageNum == 0)
     }
 
     @Test func `InternalNode makeNew returns empty cells`() {
@@ -111,8 +109,8 @@ struct InternalNodeTests {
     @Test func `InternalNode cells count reflects appended cells`() {
         var node = InternalNode.makeNew()
         #expect(node.cells.count == 0)
-        node.cells.append((child: 1, key: 100))
-        node.cells.append((child: 2, key: 200))
+        node.cells.append((childPageNum: 1, maxKeyInChildPage: 100))
+        node.cells.append((childPageNum: 2, maxKeyInChildPage: 200))
         #expect(node.cells.count == 2)
     }
 
@@ -124,23 +122,27 @@ struct InternalNodeTests {
         #expect(node.rightmostChildPageNum == 42)
     }
 
-    // MARK: - key / setKey
+    // MARK: - maxKeyInChildPage / setMaxKeyInChildPage
 
-    @Test func `InternalNode key round-trip`() {
+    @Test func `InternalNode maxKeyInChildPage round-trip`() {
         var node = InternalNode.makeNew()
-        node.cells = [(child: 0, key: 100), (child: 0, key: 200), (child: 0, key: 300)]
-        #expect(node.key(at: 0) == 100)
-        #expect(node.key(at: 1) == 200)
-        #expect(node.key(at: 2) == 300)
-        node.setKey(at: 1, 250)
-        #expect(node.key(at: 1) == 250)
+        node.cells = [
+            (childPageNum: 0, maxKeyInChildPage: 100),
+            (childPageNum: 0, maxKeyInChildPage: 200),
+            (childPageNum: 0, maxKeyInChildPage: 300),
+        ]
+        #expect(node.maxKeyInChildPage(at: 0) == 100)
+        #expect(node.maxKeyInChildPage(at: 1) == 200)
+        #expect(node.maxKeyInChildPage(at: 2) == 300)
+        node.setMaxKeyInChildPage(250, at: 1)
+        #expect(node.maxKeyInChildPage(at: 1) == 250)
     }
 
-    // MARK: - child / setChild
+    // MARK: - childPageNum
 
-    @Test func `InternalNode child round-trip for internal cells`() {
+    @Test func `InternalNode childPageNum round-trip for internal cells`() {
         var node = InternalNode.makeNew()
-        node.cells = [(child: 10, key: 0), (child: 20, key: 0)]
+        node.cells = [(childPageNum: 10, maxKeyInChildPage: 0), (childPageNum: 20, maxKeyInChildPage: 0)]
         #expect(node.childPageNum(at: 0) == 10)
         #expect(node.childPageNum(at: 1) == 20)
     }
@@ -149,35 +151,18 @@ struct InternalNodeTests {
 
     @Test func `InternalNode data round-trip preserves cells`() {
         var node = InternalNode.makeNew()
-        node.isRoot = true
-        node.cells = [(child: 3, key: 50), (child: 4, key: 100)]
+        node.parentPageNum = nil
+        node.cells = [
+            (childPageNum: 3, maxKeyInChildPage: 50),
+            (childPageNum: 4, maxKeyInChildPage: 100),
+        ]
         node.rightmostChildPageNum = 5
         let restored = InternalNode.restore(from: Page(pageNum: node.pageNum, data: node.data))
-        #expect(restored.isRoot == true)
+        #expect(restored.parentPageNum == nil)
         #expect(restored.cells.count == 2)
-        #expect(restored.cells[0].child == 3)
-        #expect(restored.cells[0].key == 50)
-        #expect(restored.cells[1].key == 100)
+        #expect(restored.cells[0].childPageNum == 3)
+        #expect(restored.cells[0].maxKeyInChildPage == 50)
+        #expect(restored.cells[1].maxKeyInChildPage == 100)
         #expect(restored.rightmostChildPageNum == 5)
-    }
-}
-
-// MARK: - maxKey
-
-struct NodeMaxKeyTests {
-    @Test func `maxKey on leaf`() {
-        var node = LeafNode.makeNew()
-        node.cells = [
-            (key: 10, value: Data(count: Row.size)),
-            (key: 20, value: Data(count: Row.size)),
-            (key: 30, value: Data(count: Row.size)),
-        ]
-        #expect(node.maxKey == 30)
-    }
-
-    @Test func `maxKey on internal`() {
-        var node = InternalNode.makeNew()
-        node.cells = [(child: 0, key: 50), (child: 0, key: 100)]
-        #expect(node.maxKey == 100)
     }
 }

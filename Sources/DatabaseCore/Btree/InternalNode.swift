@@ -19,8 +19,7 @@ struct InternalNode: BTreeNode {
         .internal
     }
 
-    var isRoot: Bool
-    var parentPageNum: UInt32
+    var parentPageNum: UInt32?
     let pageNum: UInt32
     /// Stored cells. Each element holds a child page number and its separator key.
     var cells: [(childPageNum: UInt32, maxKeyInChildPage: UInt32)]
@@ -46,12 +45,11 @@ struct InternalNode: BTreeNode {
 
     // MARK: Initializers
 
-    init(pageNum: UInt32, isRoot: Bool, parentPageNum: UInt32,
+    init(pageNum: UInt32, parentPageNum: UInt32?,
          cells: [(childPageNum: UInt32, maxKeyInChildPage: UInt32)],
          rightmostChildPageNum: UInt32?)
     {
         self.pageNum = pageNum
-        self.isRoot = isRoot
         self.parentPageNum = parentPageNum
         self.cells = cells
         self.rightmostChildPageNum = rightmostChildPageNum
@@ -59,11 +57,12 @@ struct InternalNode: BTreeNode {
 
     /// Restore from an already-allocated page.
     static func restore(from page: Page) -> InternalNode {
-        var node = InternalNode(pageNum: page.pageNum, isRoot: false, parentPageNum: 0, cells: [], rightmostChildPageNum: nil)
-        node.isRoot = page.data[BTreeNodeLayout.isRootOffset] != 0
-        node.parentPageNum = page.data.withUnsafeBytes { ptr in
+        let isRoot = page.data[BTreeNodeLayout.isRootOffset] != 0
+        let rawParentPageNum = page.data.withUnsafeBytes { ptr in
             ptr.baseAddress!.loadUnaligned(fromByteOffset: BTreeNodeLayout.parentPointerOffset, as: UInt32.self)
         }
+        let parentPageNum: UInt32? = isRoot ? nil : rawParentPageNum
+        var node = InternalNode(pageNum: page.pageNum, parentPageNum: parentPageNum, cells: [], rightmostChildPageNum: nil)
         let numKeys = page.data.withUnsafeBytes { ptr in
             ptr.baseAddress!.loadUnaligned(fromByteOffset: InternalNode.numKeysOffset, as: UInt32.self)
         }
@@ -87,8 +86,8 @@ struct InternalNode: BTreeNode {
     var data: Data {
         var out = Data(count: Pager.pageSize)
         out[BTreeNodeLayout.nodeTypeOffset] = NodeType.internal.rawValue
-        out[BTreeNodeLayout.isRootOffset] = isRoot ? 1 : 0
-        withUnsafeBytes(of: parentPageNum) { src in
+        out[BTreeNodeLayout.isRootOffset] = parentPageNum == nil ? 1 : 0
+        withUnsafeBytes(of: parentPageNum ?? 0) { src in
             out.replaceSubrange(BTreeNodeLayout.parentPointerOffset ..< BTreeNodeLayout.parentPointerOffset + 4, with: src)
         }
         let numKeys = UInt32(cells.count)

@@ -13,7 +13,7 @@ class BTree {
         // If the database is new, initialize the tree with an empty root leaf node.
         if pager.numPages == 0 {
             let page = try pager.allocatePage()
-            let root = LeafNode(pageNum: page.pageNum, isRoot: true, parentPageNum: 0, nextLeafPageNum: 0, cells: [])
+            let root = LeafNode(pageNum: page.pageNum, parentPageNum: nil, nextLeafPageNum: 0, cells: [])
             pager.setPage(Int(root.pageNum), data: root.data)
         }
     }
@@ -116,11 +116,10 @@ class BTree {
         allCells.insert((key: key, value: row.serialize()), at: Int(cursor.cellNum))
 
         oldNode.cells = Array(allCells[0 ..< LeafNode.leftSplitCount])
-        let newParentPageNum: UInt32 = oldNode.isRoot ? 0 : oldNode.parentPageNum
+        let newParentPageNum: UInt32 = oldNode.parentPageNum ?? 0
         let newPage = try pager.allocatePage()
         let newNode = LeafNode(
             pageNum: newPage.pageNum,
-            isRoot: false,
             parentPageNum: newParentPageNum,
             nextLeafPageNum: oldNextLeaf,
             cells: Array(allCells[LeafNode.leftSplitCount...]),
@@ -130,10 +129,10 @@ class BTree {
         pager.setPage(Int(oldNode.pageNum), data: oldNode.data)
         pager.setPage(Int(newNode.pageNum), data: newNode.data)
 
-        if oldNode.isRoot {
+        if oldNode.parentPageNum == nil {
             try createNewRoot(rightChildPageNum: newNode.pageNum)
         } else {
-            let parentPageNum = oldNode.parentPageNum
+            guard let parentPageNum = oldNode.parentPageNum else { fatalError() }
             let newMaxKey = getNodeMaxKey(pageNum: oldNode.pageNum)
             updateInternalNodeKey(pageNum: parentPageNum, oldKey: oldMaxKey, newKey: newMaxKey)
             try internalNodeInsert(parentPageNum: parentPageNum, childPageNum: newNode.pageNum)
@@ -154,11 +153,9 @@ class BTree {
 
         switch BTreeNodeFactory.restore(from: try! pager.getPage(Int(rootPageNum))) {
         case var .leaf(node):
-            node.isRoot = false
             node.parentPageNum = rootPageNum
             pager.setPage(Int(leftChildPageNum), data: node.data)
         case var .internal(node):
-            node.isRoot = false
             node.parentPageNum = rootPageNum
             pager.setPage(Int(leftChildPageNum), data: node.data)
             for i in 0 ... node.cells.count {
@@ -168,8 +165,7 @@ class BTree {
 
         let newRoot = InternalNode(
             pageNum: rootPageNum,
-            isRoot: true,
-            parentPageNum: 0,
+            parentPageNum: nil,
             cells: [(childPageNum: leftChildPageNum, maxKeyInChildPage: maxLeftKey)],
             rightmostChildPageNum: rightChildPageNum,
         )
@@ -230,12 +226,12 @@ class BTree {
 
         // Allocate the new sibling node up front so its pageNum is available throughout.
         let newPage = try pager.allocatePage()
-        let newNode = InternalNode(pageNum: newPage.pageNum, isRoot: false, parentPageNum: 0, cells: [], rightmostChildPageNum: nil)
+        let newNode = InternalNode(pageNum: newPage.pageNum, parentPageNum: 0, cells: [], rightmostChildPageNum: nil)
         let newPageNum = newNode.pageNum
         pager.setPage(Int(newPageNum), data: newNode.data)
 
         let oldNode = InternalNode.restore(from: try! pager.getPage(Int(parentPageNum)))
-        let splittingRoot = oldNode.isRoot
+        let splittingRoot = oldNode.parentPageNum == nil
         let grandparentPageNum: UInt32
         let actualOldPageNum: UInt32
 
@@ -246,7 +242,8 @@ class BTree {
             grandparentPageNum = rootPageNum
         } else {
             actualOldPageNum = parentPageNum
-            grandparentPageNum = oldNode.parentPageNum
+            guard let gp = oldNode.parentPageNum else { fatalError() }
+            grandparentPageNum = gp
         }
 
         // Move old node's rightmost child into new node

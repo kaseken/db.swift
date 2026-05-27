@@ -19,8 +19,7 @@ struct LeafNode: BTreeNode {
         .leaf
     }
 
-    var isRoot: Bool
-    var parentPageNum: UInt32
+    var parentPageNum: UInt32?
     let pageNum: UInt32
     var nextLeafPageNum: UInt32
     /// Stored cells. Each element holds a row key and its serialized Row value.
@@ -45,11 +44,10 @@ struct LeafNode: BTreeNode {
     /// Number of cells kept in the existing left node after a leaf split.
     static let leftSplitCount = (maxCells + 1) - rightSplitCount
 
-    init(pageNum: UInt32, isRoot: Bool, parentPageNum: UInt32,
+    init(pageNum: UInt32, parentPageNum: UInt32?,
          nextLeafPageNum: UInt32, cells: [(key: UInt32, value: Data)])
     {
         self.pageNum = pageNum
-        self.isRoot = isRoot
         self.parentPageNum = parentPageNum
         self.nextLeafPageNum = nextLeafPageNum
         self.cells = cells
@@ -58,9 +56,10 @@ struct LeafNode: BTreeNode {
     /// Restore from an already-allocated page.
     static func restore(from page: Page) -> LeafNode {
         let isRoot = page.data[BTreeNodeLayout.isRootOffset] != 0
-        let parentPageNum = page.data.withUnsafeBytes { ptr in
+        let rawParentPageNum = page.data.withUnsafeBytes { ptr in
             ptr.baseAddress!.loadUnaligned(fromByteOffset: BTreeNodeLayout.parentPointerOffset, as: UInt32.self)
         }
+        let parentPageNum: UInt32? = isRoot ? nil : rawParentPageNum
         let numCells = page.data.withUnsafeBytes { ptr in
             ptr.baseAddress!.loadUnaligned(fromByteOffset: LeafNode.numCellsOffset, as: UInt32.self)
         }
@@ -74,7 +73,7 @@ struct LeafNode: BTreeNode {
             let valOff = LeafNode.valueOffset(at: i)
             return (key: key, value: Data(page.data[valOff ..< valOff + Row.size]))
         }
-        return LeafNode(pageNum: page.pageNum, isRoot: isRoot, parentPageNum: parentPageNum,
+        return LeafNode(pageNum: page.pageNum, parentPageNum: parentPageNum,
                         nextLeafPageNum: nextLeafPageNum, cells: cells)
     }
 
@@ -83,8 +82,8 @@ struct LeafNode: BTreeNode {
     var data: Data {
         var out = Data(count: Pager.pageSize)
         out[BTreeNodeLayout.nodeTypeOffset] = NodeType.leaf.rawValue
-        out[BTreeNodeLayout.isRootOffset] = isRoot ? 1 : 0
-        withUnsafeBytes(of: parentPageNum) { src in
+        out[BTreeNodeLayout.isRootOffset] = parentPageNum == nil ? 1 : 0
+        withUnsafeBytes(of: parentPageNum ?? 0) { src in
             out.replaceSubrange(BTreeNodeLayout.parentPointerOffset ..< BTreeNodeLayout.parentPointerOffset + 4, with: src)
         }
         let numCells = UInt32(cells.count)

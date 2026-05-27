@@ -13,8 +13,6 @@ enum BTreeNodeLayout {
     static let headerSize = 6
 }
 
-// MARK: - BTreeNodeFactory
-
 enum BTreeNodeFactory {
     case leaf(LeafNode)
     case `internal`(InternalNode)
@@ -27,12 +25,10 @@ enum BTreeNodeFactory {
     }
 }
 
-// MARK: - BTreeNode protocol
-
 protocol BTreeNode {
     var nodeType: NodeType { get }
-    var isRoot: Bool { get set }
-    var parentPageNum: UInt32 { get set }
+    /// `nil` when this node is the root; otherwise the parent's page number.
+    var parentPageNum: UInt32? { get set }
     /// In-memory only. Not serialized into `data`.
     var pageNum: UInt32 { get }
     /// Serialized page representation, ready to write to the Pager.
