@@ -7,7 +7,7 @@ import Testing
 private extension LeafNode {
     /// Convenience for tests that only need a blank leaf with no pager.
     static func makeNew() -> LeafNode {
-        LeafNode(pageNum: 0)
+        LeafNode(pageNum: 0, isRoot: false, parentPageNum: 0, nextLeafPageNum: 0, cells: [])
     }
 }
 
@@ -57,66 +57,6 @@ struct BTreeNodeTests {
             node.cells.append((key: i, value: Data(count: Row.size)))
         }
         #expect(node.cells.count == 7)
-    }
-
-    // MARK: - Offsets
-
-    @Test func `cellOffset for cell 0 starts after header`() {
-        #expect(LeafNode.cellOffset(at: 0) == LeafNode.headerSize)
-    }
-
-    @Test func `cellOffset increments by cellSize`() {
-        #expect(LeafNode.cellOffset(at: 1) == LeafNode.headerSize + LeafNode.cellSize)
-        #expect(LeafNode.cellOffset(at: 2) == LeafNode.headerSize + 2 * LeafNode.cellSize)
-    }
-
-    @Test func `keyOffset equals cellOffset`() {
-        for i in 0 ..< LeafNode.maxCells {
-            #expect(LeafNode.keyOffset(at: i) == LeafNode.cellOffset(at: i))
-        }
-    }
-
-    @Test func `valueOffset is keyOffset plus keySize`() {
-        for i in 0 ..< LeafNode.maxCells {
-            #expect(LeafNode.valueOffset(at: i) == LeafNode.keyOffset(at: i) + LeafNode.keySize)
-        }
-    }
-
-    @Test func `last cell fits within page`() {
-        let lastCellEnd = LeafNode.cellOffset(at: LeafNode.maxCells - 1) + LeafNode.cellSize
-        #expect(lastCellEnd <= Pager.pageSize)
-    }
-
-    // MARK: - key / setKey
-
-    @Test func `key round-trip`() {
-        var node = LeafNode.makeNew()
-        node.cells.append((key: 42, value: Data(count: Row.size)))
-        #expect(node.key(at: 0) == 42)
-        node.setKey(at: 0, 99)
-        #expect(node.key(at: 0) == 99)
-    }
-
-    @Test func `setKey does not affect other cells`() {
-        var node = LeafNode.makeNew()
-        for _ in 0 ..< 3 {
-            node.cells.append((key: 0, value: Data(count: Row.size)))
-        }
-        node.setKey(at: 0, 1)
-        node.setKey(at: 1, 2)
-        node.setKey(at: 2, 3)
-        #expect(node.key(at: 0) == 1)
-        #expect(node.key(at: 1) == 2)
-        #expect(node.key(at: 2) == 3)
-    }
-
-    @Test func `setKey on last cell`() {
-        var node = LeafNode.makeNew()
-        for i: UInt32 in 0 ..< UInt32(LeafNode.maxCells) {
-            node.cells.append((key: i, value: Data(count: Row.size)))
-        }
-        node.setKey(at: LeafNode.maxCells - 1, 999)
-        #expect(node.key(at: LeafNode.maxCells - 1) == 999)
     }
 
     // MARK: - isRoot
