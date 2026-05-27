@@ -6,18 +6,14 @@ class BTree {
     private let internalNodeMaxCells: Int
     private var isClosed = false
 
-    private struct Cursor {
-        var node: LeafNode
-        var cellNum: UInt32
-        var endOfTable: Bool
-    }
-
+    /// - Parameter internalNodeMaxCells: For testing only. Defaults to `InternalNode.maxCells`.
     init(pager: Pager, internalNodeMaxCells: Int = InternalNode.maxCells) throws(PagerError) {
         self.pager = pager
         self.internalNodeMaxCells = internalNodeMaxCells
+        // If the database is new, initialize the tree with an empty root leaf node.
         if pager.numPages == 0 {
-            var root = try LeafNode(pager: pager)
-            root.isRoot = true
+            let page = try pager.allocatePage()
+            let root = LeafNode(pageNum: page.pageNum, parentPageNum: nil, nextLeafPageNum: 0, cells: [])
             pager.setPage(Int(root.pageNum), data: root.data)
         }
     }
@@ -25,7 +21,7 @@ class BTree {
     // MARK: - Navigation
 
     private func start() -> Cursor {
-        find(key: 0)
+        insertionPoint(for: 0)
     }
 
     var rows: some Sequence<Row> {
@@ -34,15 +30,6 @@ class BTree {
             let row = row(at: cursor)
             cursor = advance(cursor)
             return row
-        }
-    }
-
-    private func find(key: UInt32) -> Cursor {
-        switch BTreeNodeFactory.restore(from: try! pager.getPage(Int(rootPageNum))) {
-        case .leaf:
-            leafNodeFind(pageNum: rootPageNum, key: key)
-        case .internal:
-            internalNodeFind(pageNum: rootPageNum, key: key)
         }
     }
 
@@ -62,7 +49,7 @@ class BTree {
     // MARK: - Mutation
 
     func insert(row: Row) throws(ExecuteError) {
-        let cursor = find(key: row.id)
+        let cursor = insertionPoint(for: row.id)
         let node = cursor.node
         if cursor.cellNum < UInt32(node.cells.count),
            node.key(at: Int(cursor.cellNum)) == row.id
@@ -114,20 +101,10 @@ class BTree {
         return next
     }
 
-    // MARK: - Private tree operations
-
-    private func leafNodeFind(pageNum: UInt32, key: UInt32) -> Cursor {
-        let node = LeafNode.restore(from: try! pager.getPage(Int(pageNum)))
-        let (cellNum, endOfTable) = node.find(key: key)
-        return Cursor(node: node, cellNum: UInt32(cellNum), endOfTable: endOfTable)
-    }
-
-    private func internalNodeFind(pageNum: UInt32, key: UInt32) -> Cursor {
-        let node = InternalNode.restore(from: try! pager.getPage(Int(pageNum)))
-        let childPageNum = node.childPageNum(at: node.findChildIndex(key: key))
-        switch BTreeNodeFactory.restore(from: try! pager.getPage(Int(childPageNum))) {
-        case .leaf: return leafNodeFind(pageNum: childPageNum, key: key)
-        case .internal: return internalNodeFind(pageNum: childPageNum, key: key)
+    private func insertionPoint(for key: UInt32) -> Cursor {
+        switch BTreeNodeFactory.restore(from: try! pager.getPage(Int(rootPageNum))) {
+        case let .leaf(node): node.insertionPoint(for: key)
+        case let .internal(node): node.insertionPoint(for: key, pager: pager)
         }
     }
 
@@ -135,27 +112,31 @@ class BTree {
         var oldNode = cursor.node
         let oldMaxKey = getNodeMaxKey(pageNum: oldNode.pageNum)
         let oldNextLeaf = oldNode.nextLeafPageNum
-        var newNode = try LeafNode(pager: pager)
-
         var allCells = oldNode.cells
         allCells.insert((key: key, value: row.serialize()), at: Int(cursor.cellNum))
 
         oldNode.cells = Array(allCells[0 ..< LeafNode.leftSplitCount])
-        newNode.cells = Array(allCells[LeafNode.leftSplitCount...])
+        // If oldNode is the root, use rootPageNum as a placeholder; createNewRoot will correct it via updateParentPageNum.
+        // Otherwise, the new sibling inherits the same parent.
+        let newParentPageNum: UInt32 = oldNode.parentPageNum ?? rootPageNum
+        let newPage = try pager.allocatePage()
+        let newNode = LeafNode(
+            pageNum: newPage.pageNum,
+            parentPageNum: newParentPageNum,
+            nextLeafPageNum: oldNextLeaf,
+            cells: Array(allCells[LeafNode.leftSplitCount...]),
+        )
 
         oldNode.nextLeafPageNum = newNode.pageNum
-        newNode.nextLeafPageNum = oldNextLeaf
         pager.setPage(Int(oldNode.pageNum), data: oldNode.data)
         pager.setPage(Int(newNode.pageNum), data: newNode.data)
 
-        if oldNode.isRoot {
+        if oldNode.parentPageNum == nil {
             try createNewRoot(rightChildPageNum: newNode.pageNum)
         } else {
-            let parentPageNum = oldNode.parentPageNum
+            guard let parentPageNum = oldNode.parentPageNum else { fatalError() }
             let newMaxKey = getNodeMaxKey(pageNum: oldNode.pageNum)
             updateInternalNodeKey(pageNum: parentPageNum, oldKey: oldMaxKey, newKey: newMaxKey)
-            newNode.parentPageNum = parentPageNum
-            pager.setPage(Int(newNode.pageNum), data: newNode.data)
             try internalNodeInsert(parentPageNum: parentPageNum, childPageNum: newNode.pageNum)
         }
     }
@@ -163,7 +144,7 @@ class BTree {
     private func getNodeMaxKey(pageNum: UInt32) -> UInt32 {
         switch BTreeNodeFactory.restore(from: try! pager.getPage(Int(pageNum))) {
         case let .leaf(node): node.maxKey
-        case let .internal(node): getNodeMaxKey(pageNum: node.rightmostChildPageNum)
+        case let .internal(node): getNodeMaxKey(pageNum: node.rightmostChildPageNum!)
         }
     }
 
@@ -174,22 +155,22 @@ class BTree {
 
         switch BTreeNodeFactory.restore(from: try! pager.getPage(Int(rootPageNum))) {
         case var .leaf(node):
-            node.isRoot = false
             node.parentPageNum = rootPageNum
             pager.setPage(Int(leftChildPageNum), data: node.data)
         case var .internal(node):
-            node.isRoot = false
             node.parentPageNum = rootPageNum
             pager.setPage(Int(leftChildPageNum), data: node.data)
             for i in 0 ... node.cells.count {
-                updateParentPageNum(of: Int(node.childPageNum(at: i)), to: leftChildPageNum)
+                updateParentPageNum(of: Int(node.childPageNum(at: i)!), to: leftChildPageNum)
             }
         }
 
-        var newRoot = InternalNode(pageNum: rootPageNum)
-        newRoot.isRoot = true
-        newRoot.cells.append((child: leftChildPageNum, key: maxLeftKey))
-        newRoot.rightmostChildPageNum = rightChildPageNum
+        let newRoot = InternalNode(
+            pageNum: rootPageNum,
+            parentPageNum: nil,
+            cells: [(childPageNum: leftChildPageNum, maxKeyInChildPage: maxLeftKey)],
+            rightmostChildPageNum: rightChildPageNum,
+        )
         pager.setPage(Int(rootPageNum), data: newRoot.data)
 
         updateParentPageNum(of: Int(rightChildPageNum), to: rootPageNum)
@@ -208,25 +189,24 @@ class BTree {
 
     private func updateInternalNodeKey(pageNum: UInt32, oldKey: UInt32, newKey: UInt32) {
         var node = InternalNode.restore(from: try! pager.getPage(Int(pageNum)))
-        let index = node.findChildIndex(key: oldKey)
+        let cellNum = node.childCellNum(for: oldKey)
         // The rightmost child's max key is not stored in the parent's cells; nothing to update.
-        guard index < node.cells.count else { return }
-        node.setKey(at: index, newKey)
+        guard cellNum < node.cells.count else { return }
+        node.setMaxKeyInChildPage(newKey, at: cellNum)
         pager.setPage(Int(pageNum), data: node.data)
     }
 
     private func internalNodeInsert(parentPageNum: UInt32, childPageNum: UInt32) throws(PagerError) {
         var parent = InternalNode.restore(from: try! pager.getPage(Int(parentPageNum)))
         let childMaxKey = getNodeMaxKey(pageNum: childPageNum)
-        let index = parent.findChildIndex(key: childMaxKey)
+        let cellNum = parent.childCellNum(for: childMaxKey)
 
         if parent.cells.count >= internalNodeMaxCells {
             try internalNodeSplitAndInsert(parentPageNum: parentPageNum, childPageNum: childPageNum)
             return
         }
 
-        let rightChildPageNum = parent.rightmostChildPageNum
-        if rightChildPageNum == InternalNode.invalidPageNum {
+        guard let rightChildPageNum = parent.rightmostChildPageNum else {
             parent.rightmostChildPageNum = childPageNum
             pager.setPage(Int(parentPageNum), data: parent.data)
             return
@@ -234,10 +214,10 @@ class BTree {
 
         let rightChildMaxKey = getNodeMaxKey(pageNum: rightChildPageNum)
         if childMaxKey > rightChildMaxKey {
-            parent.cells.append((child: rightChildPageNum, key: rightChildMaxKey))
+            parent.cells.append((childPageNum: rightChildPageNum, maxKeyInChildPage: rightChildMaxKey))
             parent.rightmostChildPageNum = childPageNum
         } else {
-            parent.cells.insert((child: childPageNum, key: childMaxKey), at: index)
+            parent.cells.insert((childPageNum: childPageNum, maxKeyInChildPage: childMaxKey), at: cellNum)
         }
         pager.setPage(Int(parentPageNum), data: parent.data)
     }
@@ -247,40 +227,42 @@ class BTree {
         let childMax = getNodeMaxKey(pageNum: childPageNum)
 
         // Allocate the new sibling node up front so its pageNum is available throughout.
-        let newNode = try InternalNode(pager: pager)
+        let newPage = try pager.allocatePage()
+        let newNode = InternalNode(pageNum: newPage.pageNum, parentPageNum: 0, cells: [], rightmostChildPageNum: nil)
         let newPageNum = newNode.pageNum
         pager.setPage(Int(newPageNum), data: newNode.data)
 
         let oldNode = InternalNode.restore(from: try! pager.getPage(Int(parentPageNum)))
-        let splittingRoot = oldNode.isRoot
+        let splittingRoot = oldNode.parentPageNum == nil
         let grandparentPageNum: UInt32
         let actualOldPageNum: UInt32
 
         if splittingRoot {
             try createNewRoot(rightChildPageNum: newPageNum)
             let rootNode = InternalNode.restore(from: try! pager.getPage(Int(rootPageNum)))
-            actualOldPageNum = rootNode.childPageNum(at: 0)
+            actualOldPageNum = rootNode.childPageNum(at: 0)!
             grandparentPageNum = rootPageNum
         } else {
             actualOldPageNum = parentPageNum
-            grandparentPageNum = oldNode.parentPageNum
+            guard let gp = oldNode.parentPageNum else { fatalError() }
+            grandparentPageNum = gp
         }
 
         // Move old node's rightmost child into new node
         var actualOldNode = InternalNode.restore(from: try! pager.getPage(Int(actualOldPageNum)))
-        let rightChildPageNum = actualOldNode.rightmostChildPageNum
+        let rightChildPageNum = actualOldNode.rightmostChildPageNum!
         try internalNodeInsert(parentPageNum: newPageNum, childPageNum: rightChildPageNum)
         updateParentPageNum(of: Int(rightChildPageNum), to: newPageNum)
 
         // Invalidate old node's rightmostChildPageNum
         actualOldNode = InternalNode.restore(from: try! pager.getPage(Int(actualOldPageNum)))
-        actualOldNode.rightmostChildPageNum = InternalNode.invalidPageNum
+        actualOldNode.rightmostChildPageNum = nil
         pager.setPage(Int(actualOldPageNum), data: actualOldNode.data)
 
         // Move upper half of old node's cells to new node
         for i in stride(from: internalNodeMaxCells - 1, through: internalNodeMaxCells / 2 + 1, by: -1) {
             actualOldNode = InternalNode.restore(from: try! pager.getPage(Int(actualOldPageNum)))
-            let childToMovePageNum = actualOldNode.cells[i].child
+            let childToMovePageNum = actualOldNode.cells[i].childPageNum
             try internalNodeInsert(parentPageNum: newPageNum, childPageNum: childToMovePageNum)
             updateParentPageNum(of: Int(childToMovePageNum), to: newPageNum)
 
@@ -291,7 +273,7 @@ class BTree {
 
         // Promote: last remaining cell of old becomes its new rightmostChildPageNum
         actualOldNode = InternalNode.restore(from: try! pager.getPage(Int(actualOldPageNum)))
-        let newRightChild = actualOldNode.cells.last!.child
+        let newRightChild = actualOldNode.cells.last!.childPageNum
         actualOldNode.rightmostChildPageNum = newRightChild
         actualOldNode.cells.removeLast()
         pager.setPage(Int(actualOldPageNum), data: actualOldNode.data)

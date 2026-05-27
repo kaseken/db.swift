@@ -19,8 +19,7 @@ struct LeafNode: BTreeNode {
         .leaf
     }
 
-    var isRoot: Bool
-    var parentPageNum: UInt32
+    var parentPageNum: UInt32?
     let pageNum: UInt32
     var nextLeafPageNum: UInt32
     /// Stored cells. Each element holds a row key and its serialized Row value.
@@ -28,69 +27,54 @@ struct LeafNode: BTreeNode {
 
     // MARK: On-disk layout constants
 
-    /// Alias kept for the `.constants` REPL command output.
-    static let commonNodeHeaderSize = BTreeNodeLayout.headerSize
-
     private static let numCellsSize = 4
     private static let numCellsOffset = BTreeNodeLayout.headerSize // 6
     private static let nextLeafPageNumSize = 4
     private static let nextLeafPageNumOffset = numCellsOffset + numCellsSize // 10
-    static let headerSize = BTreeNodeLayout.headerSize + numCellsSize + nextLeafPageNumSize // 14
+    private static let headerSize = BTreeNodeLayout.headerSize + numCellsSize + nextLeafPageNumSize // 14
 
-    static let keySize = 4
-    static let valueSize = Row.size // 291
-    static let cellSize = keySize + valueSize // 295
-    static let spaceForCells = Pager.pageSize - headerSize // 4082
-    static let maxCells = spaceForCells / cellSize // 13
+    private static let keySize = 4
+    private static let valueSize = Row.size
+    private static let cellSize = keySize + valueSize
+    private static let spaceForCells = Pager.pageSize - headerSize
+    static let maxCells = spaceForCells / cellSize
 
-    static let rightSplitCount = (maxCells + 1) / 2 // 7
-    static let leftSplitCount = (maxCells + 1) - rightSplitCount // 7
+    /// Number of cells placed in the new right node after a leaf split.
+    private static let rightSplitCount = (maxCells + 1) / 2
+    /// Number of cells kept in the existing left node after a leaf split.
+    static let leftSplitCount = (maxCells + 1) - rightSplitCount
 
-    // MARK: Initializers
-
-    /// Pattern 1: allocate a new page from pager and initialize to defaults.
-    init(pager: Pager) throws(PagerError) {
-        let page = try pager.allocatePage()
-        pageNum = page.pageNum
-        isRoot = false
-        parentPageNum = 0
-        nextLeafPageNum = 0
-        cells = []
-    }
-
-    /// Pattern 2: restore from an already-allocated page.
-    static func restore(from page: Page) -> LeafNode {
-        LeafNode(restoring: page)
-    }
-
-    /// Internal only — for creating a blank node at a known page (e.g. createNewRoot overwriting page 0).
-    init(pageNum: UInt32) {
+    init(pageNum: UInt32, parentPageNum: UInt32?,
+         nextLeafPageNum: UInt32, cells: [(key: UInt32, value: Data)])
+    {
         self.pageNum = pageNum
-        isRoot = false
-        parentPageNum = 0
-        nextLeafPageNum = 0
-        cells = []
+        self.parentPageNum = parentPageNum
+        self.nextLeafPageNum = nextLeafPageNum
+        self.cells = cells
     }
 
-    private init(restoring page: Page) {
-        pageNum = page.pageNum
-        isRoot = page.data[BTreeNodeLayout.isRootOffset] != 0
-        parentPageNum = page.data.withUnsafeBytes { ptr in
+    /// Restore from an already-allocated page.
+    static func restore(from page: Page) -> LeafNode {
+        let isRoot = page.data[BTreeNodeLayout.isRootOffset] != 0
+        let rawParentPageNum = page.data.withUnsafeBytes { ptr in
             ptr.baseAddress!.loadUnaligned(fromByteOffset: BTreeNodeLayout.parentPointerOffset, as: UInt32.self)
         }
+        let parentPageNum: UInt32? = isRoot ? nil : rawParentPageNum
         let numCells = page.data.withUnsafeBytes { ptr in
             ptr.baseAddress!.loadUnaligned(fromByteOffset: LeafNode.numCellsOffset, as: UInt32.self)
         }
-        nextLeafPageNum = page.data.withUnsafeBytes { ptr in
+        let nextLeafPageNum = page.data.withUnsafeBytes { ptr in
             ptr.baseAddress!.loadUnaligned(fromByteOffset: LeafNode.nextLeafPageNumOffset, as: UInt32.self)
         }
-        cells = (0 ..< Int(numCells)).map { i in
+        let cells = (0 ..< Int(numCells)).map { i in
             let key = page.data.withUnsafeBytes { ptr in
                 ptr.baseAddress!.loadUnaligned(fromByteOffset: LeafNode.keyOffset(at: i), as: UInt32.self)
             }
             let valOff = LeafNode.valueOffset(at: i)
             return (key: key, value: Data(page.data[valOff ..< valOff + Row.size]))
         }
+        return LeafNode(pageNum: page.pageNum, parentPageNum: parentPageNum,
+                        nextLeafPageNum: nextLeafPageNum, cells: cells)
     }
 
     // MARK: Serialization
@@ -98,8 +82,8 @@ struct LeafNode: BTreeNode {
     var data: Data {
         var out = Data(count: Pager.pageSize)
         out[BTreeNodeLayout.nodeTypeOffset] = NodeType.leaf.rawValue
-        out[BTreeNodeLayout.isRootOffset] = isRoot ? 1 : 0
-        withUnsafeBytes(of: parentPageNum) { src in
+        out[BTreeNodeLayout.isRootOffset] = parentPageNum == nil ? 1 : 0
+        withUnsafeBytes(of: parentPageNum ?? 0) { src in
             out.replaceSubrange(BTreeNodeLayout.parentPointerOffset ..< BTreeNodeLayout.parentPointerOffset + 4, with: src)
         }
         let numCells = UInt32(cells.count)
@@ -122,39 +106,41 @@ struct LeafNode: BTreeNode {
 
     // MARK: Cell layout helpers (pure arithmetic — used by Cursor.value() and serialization)
 
-    static func cellOffset(at index: Int) -> Int {
-        headerSize + index * cellSize
+    private static func cellOffset(at cellNum: Int) -> Int {
+        headerSize + cellNum * cellSize
     }
 
-    static func keyOffset(at index: Int) -> Int {
-        cellOffset(at: index)
+    private static func keyOffset(at cellNum: Int) -> Int {
+        cellOffset(at: cellNum)
     }
 
-    static func valueOffset(at index: Int) -> Int {
-        cellOffset(at: index) + keySize
+    private static func valueOffset(at cellNum: Int) -> Int {
+        cellOffset(at: cellNum) + keySize
     }
 
-    // MARK: Search
-
-    func find(key: UInt32) -> (cellNum: Int, endOfTable: Bool) {
-        var lo = 0, hi = cells.count
+    /// Returns the first cell position where `cells[cellNum].key >= key`,
+    /// or `cells.count` (with `endOfTable: true`) if all keys are smaller.
+    private func lowerBound(for key: UInt32) -> (cellNum: Int, endOfTable: Bool) {
+        var lo = 0
+        var hi = cells.count
         while lo < hi {
             let mid = (lo + hi) / 2
-            let k = self.key(at: mid)
-            if key == k { return (mid, false) }
-            if key < k { hi = mid } else { lo = mid + 1 }
+            if self.key(at: mid) >= key {
+                hi = mid
+            } else {
+                lo = mid + 1
+            }
         }
-        return (lo, lo >= cells.count)
+        return (hi, hi >= cells.count)
     }
 
-    // MARK: Convenience accessors
-
-    func key(at index: Int) -> UInt32 {
-        cells[index].key
+    func insertionPoint(for key: UInt32) -> Cursor {
+        let (cellNum, endOfTable) = lowerBound(for: key)
+        return Cursor(node: self, cellNum: UInt32(cellNum), endOfTable: endOfTable)
     }
 
-    mutating func setKey(at index: Int, _ key: UInt32) {
-        cells[index].key = key
+    func key(at cellNum: Int) -> UInt32 {
+        cells[cellNum].key
     }
 
     var maxKey: UInt32 {

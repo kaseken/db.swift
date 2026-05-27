@@ -2,7 +2,6 @@ import Foundation
 
 enum MetaCommand: Equatable {
     case exit
-    case constants
     case btree
     case unrecognized(String)
 
@@ -10,7 +9,6 @@ enum MetaCommand: Equatable {
         guard input.hasPrefix(".") else { return nil }
         switch input {
         case ".exit": self = .exit
-        case ".constants": self = .constants
         case ".btree": self = .btree
         default: self = .unrecognized(input)
         }
@@ -20,15 +18,6 @@ enum MetaCommand: Equatable {
         switch self {
         case .exit:
             return true
-        case .constants:
-            print("Constants:")
-            print("ROW_SIZE: \(Row.size)")
-            print("COMMON_NODE_HEADER_SIZE: \(LeafNode.commonNodeHeaderSize)")
-            print("LEAF_NODE_HEADER_SIZE: \(LeafNode.headerSize)")
-            print("LEAF_NODE_CELL_SIZE: \(LeafNode.cellSize)")
-            print("LEAF_NODE_SPACE_FOR_CELLS: \(LeafNode.spaceForCells)")
-            print("LEAF_NODE_MAX_CELLS: \(LeafNode.maxCells)")
-            return false
         case .btree:
             print("Tree:")
             table.btree.printTree()
