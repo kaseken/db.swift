@@ -114,13 +114,19 @@ struct InternalNode: BTreeNode {
         headerSize + cellNum * cellSize
     }
 
+    /// Returns the cell number of the child subtree that would contain the given key if it existed.
     func childCellNum(for key: UInt32) -> Int {
-        var lo = 0, hi = cells.count
+        var lo = 0
+        var hi = cells.count
         while lo < hi {
             let mid = (lo + hi) / 2
-            if cells[mid].maxKeyInChildPage >= key { hi = mid } else { lo = mid + 1 }
+            if cells[mid].maxKeyInChildPage >= key {
+                hi = mid
+            } else {
+                lo = mid + 1
+            }
         }
-        return lo
+        return hi
     }
 
     func insertionPoint(for key: UInt32, pager: Pager) -> Cursor {
@@ -135,11 +141,11 @@ struct InternalNode: BTreeNode {
         cellNum == cells.count ? rightmostChildPageNum : cells[cellNum].childPageNum
     }
 
-    func key(at cellNum: Int) -> UInt32 {
+    func maxKeyInChildPage(at cellNum: Int) -> UInt32 {
         cells[cellNum].maxKeyInChildPage
     }
 
-    mutating func setKey(at cellNum: Int, _ key: UInt32) {
+    mutating func setMaxKeyInChildPage(_ key: UInt32, at cellNum: Int) {
         cells[cellNum].maxKeyInChildPage = key
     }
 }

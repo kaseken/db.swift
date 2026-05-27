@@ -194,7 +194,7 @@ class BTree {
         let cellNum = node.childCellNum(for: oldKey)
         // The rightmost child's max key is not stored in the parent's cells; nothing to update.
         guard cellNum < node.cells.count else { return }
-        node.setKey(at: cellNum, newKey)
+        node.setMaxKeyInChildPage(newKey, at: cellNum)
         pager.setPage(Int(pageNum), data: node.data)
     }
 

@@ -20,7 +20,7 @@ struct BTreePrinter {
             for i in 0 ..< node.cells.count {
                 let childPageNum = node.childPageNum(at: i)!
                 printTree(pageNum: childPageNum, indentation: indentation + 1)
-                print("\(indent)  - key \(node.key(at: i))")
+                print("\(indent)  - key \(node.maxKeyInChildPage(at: i))")
             }
             printTree(pageNum: node.rightmostChildPageNum!, indentation: indentation + 1)
         }
