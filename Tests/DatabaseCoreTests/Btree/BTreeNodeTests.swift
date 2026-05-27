@@ -21,16 +21,6 @@ private extension InternalNode {
 struct BTreeNodeTests {
     // MARK: - Constants
 
-    @Test func `constants are correct`() {
-        #expect(LeafNode.commonNodeHeaderSize == 6)
-        #expect(LeafNode.headerSize == 14)
-        #expect(LeafNode.keySize == 4)
-        #expect(LeafNode.valueSize == 291)
-        #expect(LeafNode.cellSize == 295)
-        #expect(LeafNode.spaceForCells == 4082)
-        #expect(LeafNode.maxCells == 13)
-    }
-
     // MARK: - makeNew
 
     @Test func `makeNew sets node type to leaf`() {
@@ -91,25 +81,9 @@ struct BTreeNodeTests {
         #expect(restored.cells[0].key == 10)
         #expect(restored.cells[1].key == 20)
     }
-
-    // MARK: - Split count constants
-
-    @Test func `split count constants`() {
-        #expect(LeafNode.rightSplitCount == 7)
-        #expect(LeafNode.leftSplitCount == 7)
-    }
 }
 
 struct InternalNodeTests {
-    // MARK: - Constants
-
-    @Test func `InternalNode constants are correct`() {
-        #expect(InternalNode.numKeysOffset == 6)
-        #expect(InternalNode.rightmostChildPageNumOffset == 10)
-        #expect(InternalNode.headerSize == 14)
-        #expect(InternalNode.cellSize == 8)
-    }
-
     // MARK: - makeNew
 
     @Test func `InternalNode makeNew sets node type to internal`() {

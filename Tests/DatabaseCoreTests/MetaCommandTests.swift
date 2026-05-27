@@ -18,13 +18,6 @@ struct MetaCommandTests {
         }
     }
 
-    @Test func `constants command`() {
-        guard case .constants = MetaCommand(".constants") else {
-            Issue.record("Expected .constants")
-            return
-        }
-    }
-
     @Test func `btree command`() {
         guard case .btree = MetaCommand(".btree") else {
             Issue.record("Expected .btree")

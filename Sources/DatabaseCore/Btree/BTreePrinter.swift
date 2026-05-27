@@ -18,11 +18,11 @@ struct BTreePrinter {
         case let .internal(node):
             print("\(indent)- internal (size \(node.cells.count))")
             for i in 0 ..< node.cells.count {
-                let childPageNum = node.childPageNum(at: i)
+                let childPageNum = node.childPageNum(at: i)!
                 printTree(pageNum: childPageNum, indentation: indentation + 1)
                 print("\(indent)  - key \(node.key(at: i))")
             }
-            printTree(pageNum: node.rightmostChildPageNum, indentation: indentation + 1)
+            printTree(pageNum: node.rightmostChildPageNum!, indentation: indentation + 1)
         }
     }
 }

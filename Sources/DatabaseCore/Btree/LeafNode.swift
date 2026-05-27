@@ -28,23 +28,20 @@ struct LeafNode: BTreeNode {
 
     // MARK: On-disk layout constants
 
-    /// Alias kept for the `.constants` REPL command output.
-    static let commonNodeHeaderSize = BTreeNodeLayout.headerSize
-
     private static let numCellsSize = 4
     private static let numCellsOffset = BTreeNodeLayout.headerSize // 6
     private static let nextLeafPageNumSize = 4
     private static let nextLeafPageNumOffset = numCellsOffset + numCellsSize // 10
-    static let headerSize = BTreeNodeLayout.headerSize + numCellsSize + nextLeafPageNumSize // 14
+    private static let headerSize = BTreeNodeLayout.headerSize + numCellsSize + nextLeafPageNumSize // 14
 
-    static let keySize = 4
-    static let valueSize = Row.size
-    static let cellSize = keySize + valueSize
-    static let spaceForCells = Pager.pageSize - headerSize
+    private static let keySize = 4
+    private static let valueSize = Row.size
+    private static let cellSize = keySize + valueSize
+    private static let spaceForCells = Pager.pageSize - headerSize
     static let maxCells = spaceForCells / cellSize
 
     /// Number of cells placed in the new right node after a leaf split.
-    static let rightSplitCount = (maxCells + 1) / 2
+    private static let rightSplitCount = (maxCells + 1) / 2
     /// Number of cells kept in the existing left node after a leaf split.
     static let leftSplitCount = (maxCells + 1) - rightSplitCount
 
@@ -124,7 +121,7 @@ struct LeafNode: BTreeNode {
 
     /// Returns the first cell position where `cells[cellNum].key >= key`,
     /// or `cells.count` (with `endOfTable: true`) if all keys are smaller.
-    func lowerBound(for key: UInt32) -> (cellNum: Int, endOfTable: Bool) {
+    private func lowerBound(for key: UInt32) -> (cellNum: Int, endOfTable: Bool) {
         var lo = 0
         var hi = cells.count
         while lo < hi {
@@ -136,6 +133,11 @@ struct LeafNode: BTreeNode {
             }
         }
         return (hi, hi >= cells.count)
+    }
+
+    func insertionPoint(for key: UInt32) -> Cursor {
+        let (cellNum, endOfTable) = lowerBound(for: key)
+        return Cursor(node: self, cellNum: UInt32(cellNum), endOfTable: endOfTable)
     }
 
     func key(at cellNum: Int) -> UInt32 {
