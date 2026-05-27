@@ -116,7 +116,9 @@ class BTree {
         allCells.insert((key: key, value: row.serialize()), at: Int(cursor.cellNum))
 
         oldNode.cells = Array(allCells[0 ..< LeafNode.leftSplitCount])
-        let newParentPageNum: UInt32 = oldNode.parentPageNum ?? 0
+        // If oldNode is the root, use rootPageNum as a placeholder; createNewRoot will correct it via updateParentPageNum.
+        // Otherwise, the new sibling inherits the same parent.
+        let newParentPageNum: UInt32 = oldNode.parentPageNum ?? rootPageNum
         let newPage = try pager.allocatePage()
         let newNode = LeafNode(
             pageNum: newPage.pageNum,
