@@ -38,13 +38,15 @@ struct LeafNode: BTreeNode {
     static let headerSize = BTreeNodeLayout.headerSize + numCellsSize + nextLeafPageNumSize // 14
 
     static let keySize = 4
-    static let valueSize = Row.size // 291
-    static let cellSize = keySize + valueSize // 295
-    static let spaceForCells = Pager.pageSize - headerSize // 4082
-    static let maxCells = spaceForCells / cellSize // 13
+    static let valueSize = Row.size
+    static let cellSize = keySize + valueSize
+    static let spaceForCells = Pager.pageSize - headerSize
+    static let maxCells = spaceForCells / cellSize
 
-    static let rightSplitCount = (maxCells + 1) / 2 // 7
-    static let leftSplitCount = (maxCells + 1) - rightSplitCount // 7
+    /// Number of cells placed in the new right node after a leaf split.
+    static let rightSplitCount = (maxCells + 1) / 2
+    /// Number of cells kept in the existing left node after a leaf split.
+    static let leftSplitCount = (maxCells + 1) - rightSplitCount
 
     init(pageNum: UInt32, isRoot: Bool, parentPageNum: UInt32,
          nextLeafPageNum: UInt32, cells: [(key: UInt32, value: Data)])
@@ -120,20 +122,21 @@ struct LeafNode: BTreeNode {
         cellOffset(at: cellNum) + keySize
     }
 
-    // MARK: Search
-
-    func find(key: UInt32) -> (cellNum: Int, endOfTable: Bool) {
-        var lo = 0, hi = cells.count
+    /// Returns the first cell position where `cells[cellNum].key >= key`,
+    /// or `cells.count` (with `endOfTable: true`) if all keys are smaller.
+    func lowerBound(for key: UInt32) -> (cellNum: Int, endOfTable: Bool) {
+        var lo = 0
+        var hi = cells.count
         while lo < hi {
             let mid = (lo + hi) / 2
-            let k = self.key(at: mid)
-            if key == k { return (mid, false) }
-            if key < k { hi = mid } else { lo = mid + 1 }
+            if self.key(at: mid) >= key {
+                hi = mid
+            } else {
+                lo = mid + 1
+            }
         }
-        return (lo, lo >= cells.count)
+        return (hi, hi >= cells.count)
     }
-
-    // MARK: Convenience accessors
 
     func key(at cellNum: Int) -> UInt32 {
         cells[cellNum].key

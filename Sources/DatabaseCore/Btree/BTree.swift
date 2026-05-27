@@ -120,7 +120,7 @@ class BTree {
 
     private func leafNodeFind(pageNum: UInt32, key: UInt32) -> Cursor {
         let node = LeafNode.restore(from: try! pager.getPage(Int(pageNum)))
-        let (cellNum, endOfTable) = node.find(key: key)
+        let (cellNum, endOfTable) = node.lowerBound(for: key)
         return Cursor(node: node, cellNum: UInt32(cellNum), endOfTable: endOfTable)
     }
 
