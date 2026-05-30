@@ -2,44 +2,11 @@
 import Foundation
 import Testing
 
-// MARK: - Test helpers
-
-private extension LeafNode {
-    /// Convenience for tests that only need a blank leaf with no pager.
-    static func makeNew() -> LeafNode {
-        LeafNode(pageNum: 0, parentPageNum: 0, nextLeafPageNum: 0, cells: [])
-    }
-}
-
-private extension InternalNode {
-    /// Convenience for tests that only need a blank internal node with no pager.
-    static func makeNew() -> InternalNode {
-        InternalNode(pageNum: 0, parentPageNum: 0, cells: [], rightmostChildPageNum: nil)
-    }
-}
-
 struct BTreeNodeTests {
-    // MARK: - makeNew
-
-    @Test func `makeNew sets node type to leaf`() {
-        let node = LeafNode.makeNew()
-        #expect(node.nodeType == .leaf)
-    }
-
-    @Test func `makeNew returns empty cells`() {
-        let node = LeafNode.makeNew()
-        #expect(node.cells.isEmpty)
-    }
-
-    @Test func `makeNew returns a full page`() {
-        let node = LeafNode.makeNew()
-        #expect(node.data.count == Pager.pageSize)
-    }
-
     // MARK: - cells
 
     @Test func `cells count reflects appended cells`() {
-        var node = LeafNode.makeNew()
+        var node = LeafNode(pageNum: 0, parentPageNum: 0, nextLeafPageNum: 0, cells: [])
         #expect(node.cells.count == 0)
         for i: UInt32 in 1 ... 7 {
             node.cells.append((key: i, value: Data(count: Row.size)))
@@ -49,14 +16,13 @@ struct BTreeNodeTests {
 
     // MARK: - parent
 
-    @Test func `parentPageNum defaults to 0 after makeNew`() {
-        let node = LeafNode.makeNew()
+    @Test func `parentPageNum defaults to 0`() {
+        let node = LeafNode(pageNum: 0, parentPageNum: 0, nextLeafPageNum: 0, cells: [])
         #expect(node.parentPageNum == 0)
     }
 
     @Test func `parentPageNum round-trip`() {
-        var node = LeafNode.makeNew()
-        node.parentPageNum = nil
+        var node = LeafNode(pageNum: 0, parentPageNum: nil, nextLeafPageNum: 0, cells: [])
         #expect(node.parentPageNum == nil)
         node.parentPageNum = 5
         #expect(node.parentPageNum == 5)
@@ -65,13 +31,10 @@ struct BTreeNodeTests {
     // MARK: - Serialization round-trip
 
     @Test func `data round-trip preserves cells`() {
-        var node = LeafNode.makeNew()
-        node.parentPageNum = nil
-        node.cells = [
+        let node = LeafNode(pageNum: 0, parentPageNum: nil, nextLeafPageNum: 7, cells: [
             (key: 10, value: Data(repeating: 0xAB, count: Row.size)),
             (key: 20, value: Data(repeating: 0xCD, count: Row.size)),
-        ]
-        node.nextLeafPageNum = 7
+        ])
         let restored = LeafNode.restore(from: Page(pageNum: node.pageNum, data: node.data))
         #expect(restored.parentPageNum == nil)
         #expect(restored.nextLeafPageNum == 7)
@@ -82,32 +45,10 @@ struct BTreeNodeTests {
 }
 
 struct InternalNodeTests {
-    // MARK: - makeNew
-
-    @Test func `InternalNode makeNew sets node type to internal`() {
-        let node = InternalNode.makeNew()
-        #expect(node.nodeType == .internal)
-    }
-
-    @Test func `InternalNode makeNew sets parentPageNum to 0`() {
-        let node = InternalNode.makeNew()
-        #expect(node.parentPageNum == 0)
-    }
-
-    @Test func `InternalNode makeNew returns empty cells`() {
-        let node = InternalNode.makeNew()
-        #expect(node.cells.isEmpty)
-    }
-
-    @Test func `InternalNode makeNew returns a full page`() {
-        let node = InternalNode.makeNew()
-        #expect(node.data.count == Pager.pageSize)
-    }
-
     // MARK: - cells count
 
     @Test func `InternalNode cells count reflects appended cells`() {
-        var node = InternalNode.makeNew()
+        var node = InternalNode(pageNum: 0, parentPageNum: 0, cells: [], rightmostChildPageNum: nil)
         #expect(node.cells.count == 0)
         node.cells.append((childPageNum: 1, maxKeyInChildPage: 100))
         node.cells.append((childPageNum: 2, maxKeyInChildPage: 200))
@@ -117,7 +58,7 @@ struct InternalNodeTests {
     // MARK: - rightmostChildPageNum
 
     @Test func `InternalNode rightmostChildPageNum round-trip`() {
-        var node = InternalNode.makeNew()
+        var node = InternalNode(pageNum: 0, parentPageNum: 0, cells: [], rightmostChildPageNum: nil)
         node.rightmostChildPageNum = 42
         #expect(node.rightmostChildPageNum == 42)
     }
@@ -125,12 +66,11 @@ struct InternalNodeTests {
     // MARK: - maxKeyInChildPage / setMaxKeyInChildPage
 
     @Test func `InternalNode maxKeyInChildPage round-trip`() {
-        var node = InternalNode.makeNew()
-        node.cells = [
+        var node = InternalNode(pageNum: 0, parentPageNum: 0, cells: [
             (childPageNum: 0, maxKeyInChildPage: 100),
             (childPageNum: 0, maxKeyInChildPage: 200),
             (childPageNum: 0, maxKeyInChildPage: 300),
-        ]
+        ], rightmostChildPageNum: nil)
         #expect(node.maxKeyInChildPage(at: 0) == 100)
         #expect(node.maxKeyInChildPage(at: 1) == 200)
         #expect(node.maxKeyInChildPage(at: 2) == 300)
@@ -141,8 +81,7 @@ struct InternalNodeTests {
     // MARK: - childPageNum
 
     @Test func `InternalNode childPageNum round-trip for internal cells`() {
-        var node = InternalNode.makeNew()
-        node.cells = [(childPageNum: 10, maxKeyInChildPage: 0), (childPageNum: 20, maxKeyInChildPage: 0)]
+        let node = InternalNode(pageNum: 0, parentPageNum: 0, cells: [(childPageNum: 10, maxKeyInChildPage: 0), (childPageNum: 20, maxKeyInChildPage: 0)], rightmostChildPageNum: nil)
         #expect(node.childPageNum(at: 0) == 10)
         #expect(node.childPageNum(at: 1) == 20)
     }
@@ -150,13 +89,10 @@ struct InternalNodeTests {
     // MARK: - Serialization round-trip
 
     @Test func `InternalNode data round-trip preserves cells`() {
-        var node = InternalNode.makeNew()
-        node.parentPageNum = nil
-        node.cells = [
+        let node = InternalNode(pageNum: 0, parentPageNum: nil, cells: [
             (childPageNum: 3, maxKeyInChildPage: 50),
             (childPageNum: 4, maxKeyInChildPage: 100),
-        ]
-        node.rightmostChildPageNum = 5
+        ], rightmostChildPageNum: 5)
         let restored = InternalNode.restore(from: Page(pageNum: node.pageNum, data: node.data))
         #expect(restored.parentPageNum == nil)
         #expect(restored.cells.count == 2)
