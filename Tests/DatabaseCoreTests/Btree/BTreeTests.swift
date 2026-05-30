@@ -91,7 +91,7 @@ struct BTreeTests {
     //   Phase 2: Fill L2 with [1210..1260] then insert 1270 to split it →
     //            root: key[0]=1200, key[1]=1270, numKeys=2, L1, L2'=[1210-1270], L3=[1400-2600]
     //   Phase 3: Fill L1 (child[0]) with [2..7] then insert 8 to split it →
-    //            updateInternalNodeKey changes key[0] from 1200 → 7;
+    //            updateMaxKeyInChildPage changes key[0] from 1200 → 7;
     //            internalNodeInsert gets right sibling (max=1200) at index=1 < numKeys=2
     //            → cell-shift loop body executes.
     @Test func `cell-shift loop in internalNodeInsert fires when new sibling goes before existing cell`() throws {

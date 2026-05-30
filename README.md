@@ -1,4 +1,4 @@
-# db_tutorial_swift
+# db.swift
 
 [![codecov](https://codecov.io/gh/kaseken/db.swift/graph/badge.svg?token=J37UWW9THV)](https://codecov.io/gh/kaseken/db.swift)
 

@@ -136,7 +136,7 @@ class BTree {
         } else {
             guard let parentPageNum = oldNode.parentPageNum else { fatalError() }
             let newMaxKey = getNodeMaxKey(pageNum: oldNode.pageNum)
-            updateInternalNodeKey(pageNum: parentPageNum, oldKey: oldMaxKey, newKey: newMaxKey)
+            updateMaxKeyInChildPage(pageNum: parentPageNum, from: oldMaxKey, to: newMaxKey)
             try internalNodeInsert(parentPageNum: parentPageNum, childPageNum: newNode.pageNum)
         }
     }
@@ -187,7 +187,7 @@ class BTree {
         }
     }
 
-    private func updateInternalNodeKey(pageNum: UInt32, oldKey: UInt32, newKey: UInt32) {
+    private func updateMaxKeyInChildPage(pageNum: UInt32, from oldKey: UInt32, to newKey: UInt32) {
         var node = InternalNode.restore(from: try! pager.getPage(Int(pageNum)))
         let cellNum = node.childCellNum(for: oldKey)
         // The rightmost child's max key is not stored in the parent's cells; nothing to update.
@@ -285,8 +285,8 @@ class BTree {
         updateParentPageNum(of: Int(childPageNum), to: destPageNum)
 
         // Update grandparent's key for old node
-        updateInternalNodeKey(pageNum: grandparentPageNum, oldKey: oldMax,
-                              newKey: getNodeMaxKey(pageNum: actualOldPageNum))
+        updateMaxKeyInChildPage(pageNum: grandparentPageNum, from: oldMax,
+                                to: getNodeMaxKey(pageNum: actualOldPageNum))
 
         // If not root split, insert new node into grandparent
         if !splittingRoot {
