@@ -77,13 +77,13 @@ class Pager {
         }
     }
 
-    func close() {
-        fileHandle.closeFile()
-    }
-
     private func flush(pageNum: Int, numBytes: Int) {
         guard let page = pages[pageNum] else { return }
         fileHandle.seek(toFileOffset: UInt64(pageNum * Pager.pageSize))
         fileHandle.write(page.prefix(numBytes))
+    }
+
+    func close() {
+        fileHandle.closeFile()
     }
 }

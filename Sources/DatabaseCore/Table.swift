@@ -17,20 +17,12 @@ public class Table {
         btree.close()
     }
 
-    public func insert(row: Row) throws(ExecuteError) {
-        try btree.insert(row: row)
-    }
-
-    public func select() -> [Row] {
-        Array(btree.rows)
-    }
-
     public func execute(_ statement: Statement) throws(ExecuteError) {
         switch statement {
         case let .insert(row):
-            try insert(row: row)
+            try btree.insert(row: row)
         case .select:
-            select().forEach { $0.printRow() }
+            btree.rows.forEach { $0.printRow() }
         }
     }
 }
