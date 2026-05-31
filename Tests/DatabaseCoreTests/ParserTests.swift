@@ -1,9 +1,9 @@
 @testable import DatabaseCore
 import Testing
 
-struct StatementTests {
+struct ParserTests {
     @Test func `insert parses valid input`() {
-        guard case let .success(stmt) = Statement.parse("insert 1 foo foo@example.com"),
+        guard case let .success(stmt) = Parser.parse("insert 1 foo foo@example.com"),
               case let .insert(row) = stmt
         else {
             Issue.record("Expected .success(.insert(...))")
@@ -13,7 +13,7 @@ struct StatementTests {
     }
 
     @Test func `select keyword`() {
-        guard case let .success(stmt) = Statement.parse("select"),
+        guard case let .success(stmt) = Parser.parse("select"),
               case .select = stmt
         else {
             Issue.record("Expected .success(.select)")
@@ -22,7 +22,7 @@ struct StatementTests {
     }
 
     @Test func `insert with missing args returns syntax error`() {
-        guard case let .failure(err) = Statement.parse("insert") else {
+        guard case let .failure(err) = Parser.parse("insert") else {
             Issue.record("Expected .failure")
             return
         }
@@ -30,7 +30,7 @@ struct StatementTests {
     }
 
     @Test func `insert with non-numeric id returns syntax error`() {
-        guard case let .failure(err) = Statement.parse("insert abc foo foo@example.com") else {
+        guard case let .failure(err) = Parser.parse("insert abc foo foo@example.com") else {
             Issue.record("Expected .failure")
             return
         }
@@ -38,7 +38,7 @@ struct StatementTests {
     }
 
     @Test func `unknown keyword returns unrecognized`() {
-        guard case let .failure(err) = Statement.parse("unknown") else {
+        guard case let .failure(err) = Parser.parse("unknown") else {
             Issue.record("Expected .failure")
             return
         }
@@ -46,7 +46,7 @@ struct StatementTests {
     }
 
     @Test func `empty input returns unrecognized`() {
-        guard case let .failure(err) = Statement.parse("") else {
+        guard case let .failure(err) = Parser.parse("") else {
             Issue.record("Expected .failure")
             return
         }
@@ -54,7 +54,7 @@ struct StatementTests {
     }
 
     @Test func `insert with negative id returns negativeId`() {
-        guard case let .failure(err) = Statement.parse("insert -1 foo foo@example.com") else {
+        guard case let .failure(err) = Parser.parse("insert -1 foo foo@example.com") else {
             Issue.record("Expected .failure")
             return
         }
@@ -64,7 +64,7 @@ struct StatementTests {
     @Test func `insert with max length username and email succeeds`() {
         let username = String(repeating: "a", count: 32)
         let email = String(repeating: "b", count: 255)
-        guard case let .success(stmt) = Statement.parse("insert 1 \(username) \(email)"),
+        guard case let .success(stmt) = Parser.parse("insert 1 \(username) \(email)"),
               case let .insert(row) = stmt
         else {
             Issue.record("Expected .success(.insert(...))")
@@ -76,7 +76,7 @@ struct StatementTests {
 
     @Test func `insert with username too long returns stringTooLong`() {
         let username = String(repeating: "a", count: 33)
-        guard case let .failure(err) = Statement.parse("insert 1 \(username) foo@example.com") else {
+        guard case let .failure(err) = Parser.parse("insert 1 \(username) foo@example.com") else {
             Issue.record("Expected .failure")
             return
         }
@@ -85,7 +85,7 @@ struct StatementTests {
 
     @Test func `insert with email too long returns stringTooLong`() {
         let email = String(repeating: "b", count: 256)
-        guard case let .failure(err) = Statement.parse("insert 1 foo \(email)") else {
+        guard case let .failure(err) = Parser.parse("insert 1 foo \(email)") else {
             Issue.record("Expected .failure")
             return
         }

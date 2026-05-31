@@ -1,3 +1,8 @@
+public enum Statement {
+    case insert(Row)
+    case select
+}
+
 public enum ParseError: Error {
     case syntaxError
     case unrecognized
@@ -5,10 +10,7 @@ public enum ParseError: Error {
     case stringTooLong
 }
 
-public enum Statement {
-    case insert(Row)
-    case select
-
+public enum Parser {
     public static func parse(_ input: String) -> Result<Statement, ParseError> {
         if input.hasPrefix("insert") {
             let parts = input.split(separator: " ", maxSplits: 3, omittingEmptySubsequences: true)
@@ -23,16 +25,9 @@ public enum Statement {
             let row = Row(id: UInt32(idInt), username: username, email: email)
             return .success(.insert(row))
         }
-        if input == "select" { return .success(.select) }
-        return .failure(.unrecognized)
-    }
-
-    public func execute(on table: Table) throws(ExecuteError) {
-        switch self {
-        case let .insert(row):
-            try table.insert(row: row)
-        case .select:
-            table.select().forEach { $0.printRow() }
+        if input == "select" {
+            return .success(.select)
         }
+        return .failure(.unrecognized)
     }
 }
