@@ -48,10 +48,10 @@ public struct REPL {
                 continue
             }
 
-            switch Statement.parse(line) {
+            switch Parser.parse(line) {
             case let .success(statement):
                 do {
-                    try statement.execute(on: table)
+                    try table.execute(statement)
                     print("Executed.")
                 } catch ExecuteError.duplicateKey {
                     print("Error: Duplicate key.")
