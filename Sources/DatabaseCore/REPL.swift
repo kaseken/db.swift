@@ -39,8 +39,11 @@ public struct REPL {
     public func run(filename: String) throws {
         let table = try Table(filename: filename)
         defer { table.close() }
+        // Only show the prompt when stdin is a terminal, mirroring real RDB CLIs
+        // (e.g. sqlite3), which stay silent when reading piped input.
+        let isInteractive = isatty(FileHandle.standardInput.fileDescriptor) != 0
         while true {
-            printPrompt()
+            if isInteractive { printPrompt() }
             guard let line = readLine() else { break }
 
             if let cmd = MetaCommand(line) {
@@ -52,7 +55,6 @@ public struct REPL {
             case let .success(statement):
                 do {
                     try table.execute(statement)
-                    print("Executed.")
                 } catch ExecuteError.duplicateKey {
                     print("Error: Duplicate key.")
                 } catch ExecuteError.tableFull {
