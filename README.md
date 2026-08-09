@@ -15,14 +15,14 @@ Example:
 
 ```bash
 swift run db test.db
-# db > insert 1 user1 user1@example.com
-# db > insert 2 user2 user2@example.com
-# db > select
+# db > INSERT INTO users VALUES (1, 'user1', 'user1@example.com')
+# db > INSERT INTO users VALUES (2, 'user2', 'user2@example.com')
+# db > SELECT * FROM users
 # db > .exit
 
 # Reopen to confirm data persisted
 swift run db test.db
-# db > select
+# db > SELECT * FROM users
 # db > .exit
 ```
 
@@ -37,7 +37,7 @@ swift build && swift test
 ## Usage
 
 ```
-db > insert 1 user1 user1@example.com
-db > select
+db > INSERT INTO users VALUES (1, 'user1', 'user1@example.com')
+db > SELECT * FROM users
 db > .exit
 ```

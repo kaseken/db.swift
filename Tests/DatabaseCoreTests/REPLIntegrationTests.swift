@@ -48,15 +48,12 @@ struct REPLIntegrationTests {
         let db = makeTempDBPath()
         defer { try? FileManager.default.removeItem(atPath: db) }
         let result = try runScript([
-            "insert 1 user1 person1@example.com",
-            "select",
+            "INSERT INTO users VALUES (1, 'user1', 'person1@example.com')",
+            "SELECT * FROM users",
             ".exit",
         ], dbFile: db)
         #expect(result == [
-            "db > Executed.",
-            "db > (1, user1, person1@example.com)",
-            "Executed.",
-            "db > ",
+            "(1, user1, person1@example.com)",
         ])
     }
 
@@ -66,15 +63,12 @@ struct REPLIntegrationTests {
         let longUsername = String(repeating: "a", count: 32)
         let longEmail = String(repeating: "a", count: 255)
         let result = try runScript([
-            "insert 1 \(longUsername) \(longEmail)",
-            "select",
+            "INSERT INTO users VALUES (1, '\(longUsername)', '\(longEmail)')",
+            "SELECT * FROM users",
             ".exit",
         ], dbFile: db)
         #expect(result == [
-            "db > Executed.",
-            "db > (1, \(longUsername), \(longEmail))",
-            "Executed.",
-            "db > ",
+            "(1, \(longUsername), \(longEmail))",
         ])
     }
 
@@ -83,14 +77,12 @@ struct REPLIntegrationTests {
         defer { try? FileManager.default.removeItem(atPath: db) }
         let longUsername = String(repeating: "a", count: 33)
         let result = try runScript([
-            "insert 1 \(longUsername) foo@bar.com",
-            "insert 2 foo foo@bar.com",
+            "INSERT INTO users VALUES (1, '\(longUsername)', 'foo@bar.com')",
+            "INSERT INTO users VALUES (2, 'foo', 'foo@bar.com')",
             ".exit",
         ], dbFile: db)
         #expect(result == [
-            "db > String is too long.",
-            "db > Executed.",
-            "db > ",
+            "String is too long.",
         ])
     }
 
@@ -98,14 +90,12 @@ struct REPLIntegrationTests {
         let db = makeTempDBPath()
         defer { try? FileManager.default.removeItem(atPath: db) }
         let result = try runScript([
-            "insert -1 foo foo@example.com",
-            "insert 1 foo foo@example.com",
+            "INSERT INTO users VALUES (-1, 'foo', 'foo@example.com')",
+            "INSERT INTO users VALUES (1, 'foo', 'foo@example.com')",
             ".exit",
         ], dbFile: db)
         #expect(result == [
-            "db > ID must be positive.",
-            "db > Executed.",
-            "db > ",
+            "ID must be positive.",
         ])
     }
 
@@ -114,18 +104,16 @@ struct REPLIntegrationTests {
         defer { try? FileManager.default.removeItem(atPath: db) }
         let result = try runScript([".unknown", ".exit"], dbFile: db)
         #expect(result == [
-            "db > Unrecognized command '.unknown'.",
-            "db > ",
+            "Unrecognized command '.unknown'.",
         ])
     }
 
     @Test func `prints error message for syntax error`() throws {
         let db = makeTempDBPath()
         defer { try? FileManager.default.removeItem(atPath: db) }
-        let result = try runScript(["insert foo", ".exit"], dbFile: db)
+        let result = try runScript(["INSERT INTO users VALUES (foo)", ".exit"], dbFile: db)
         #expect(result == [
-            "db > Syntax error. Could not parse statement.",
-            "db > ",
+            "Syntax error. Could not parse statement.",
         ])
     }
 
@@ -134,8 +122,7 @@ struct REPLIntegrationTests {
         defer { try? FileManager.default.removeItem(atPath: db) }
         let result = try runScript(["unknown", ".exit"], dbFile: db)
         #expect(result == [
-            "db > Unrecognized keyword at start of 'unknown'.",
-            "db > ",
+            "Unrecognized keyword at start of 'unknown'.",
         ])
     }
 
@@ -143,50 +130,44 @@ struct REPLIntegrationTests {
         let db = makeTempDBPath()
         defer { try? FileManager.default.removeItem(atPath: db) }
         let result = try runScript([], dbFile: db)
-        #expect(result == ["db > "])
+        #expect(result == [])
     }
 
     @Test func `allows printing out the structure of a one-node btree`() throws {
         let db = makeTempDBPath()
         defer { try? FileManager.default.removeItem(atPath: db) }
         let result = try runScript([
-            "insert 3 user3 person3@example.com",
-            "insert 1 user1 person1@example.com",
-            "insert 2 user2 person2@example.com",
+            "INSERT INTO users VALUES (3, 'user3', 'person3@example.com')",
+            "INSERT INTO users VALUES (1, 'user1', 'person1@example.com')",
+            "INSERT INTO users VALUES (2, 'user2', 'person2@example.com')",
             ".btree",
             ".exit",
         ], dbFile: db)
         #expect(result == [
-            "db > Executed.",
-            "db > Executed.",
-            "db > Executed.",
-            "db > Tree:",
+            "Tree:",
             "- leaf (size 3)",
             "  - 1",
             "  - 2",
             "  - 3",
-            "db > ",
         ])
     }
 
     @Test func `allows printing out the structure of a 3-leaf-node btree`() throws {
         let db = makeTempDBPath()
         defer { try? FileManager.default.removeItem(atPath: db) }
-        let inserts = (1 ... 14).map { "insert \($0) user\($0) person\($0)@example.com" }
+        let inserts = (1 ... 14).map { "INSERT INTO users VALUES (\($0), 'user\($0)', 'person\($0)@example.com')" }
         let result = try runScript(
-            inserts + [".btree", "insert 15 user15 person15@example.com", ".exit"],
+            inserts + [".btree", "INSERT INTO users VALUES (15, 'user15', 'person15@example.com')", ".exit"],
             dbFile: db,
         )
-        #expect(Array(result.dropFirst(14)) == [
-            "db > Tree:",
+        #expect(result == [
+            "Tree:",
             "- internal (size 1)",
             "  - leaf (size 7)",
             "    - 1", "    - 2", "    - 3", "    - 4", "    - 5", "    - 6", "    - 7",
             "  - key 7",
             "  - leaf (size 7)",
             "    - 8", "    - 9", "    - 10", "    - 11", "    - 12", "    - 13", "    - 14",
-            "db > Executed.",
-            "db > ",
         ])
     }
 
@@ -196,20 +177,19 @@ struct REPLIntegrationTests {
         // so the new cell is written into the left (old) page — the branch not covered by sequential inserts.
         let db = makeTempDBPath()
         defer { try? FileManager.default.removeItem(atPath: db) }
-        let insertsWithout7 = (1 ... 14).filter { $0 != 7 }.map { "insert \($0) user\($0) person\($0)@example.com" }
+        let insertsWithout7 = (1 ... 14).filter { $0 != 7 }.map { "INSERT INTO users VALUES (\($0), 'user\($0)', 'person\($0)@example.com')" }
         let result = try runScript(
-            insertsWithout7 + ["insert 7 user7 person7@example.com", ".btree", ".exit"],
+            insertsWithout7 + ["INSERT INTO users VALUES (7, 'user7', 'person7@example.com')", ".btree", ".exit"],
             dbFile: db,
         )
-        #expect(Array(result.dropFirst(14)) == [
-            "db > Tree:",
+        #expect(result == [
+            "Tree:",
             "- internal (size 1)",
             "  - leaf (size 7)",
             "    - 1", "    - 2", "    - 3", "    - 4", "    - 5", "    - 6", "    - 7",
             "  - key 7",
             "  - leaf (size 7)",
             "    - 8", "    - 9", "    - 10", "    - 11", "    - 12", "    - 13", "    - 14",
-            "db > ",
         ])
     }
 
@@ -217,14 +197,12 @@ struct REPLIntegrationTests {
         let db = makeTempDBPath()
         defer { try? FileManager.default.removeItem(atPath: db) }
         let result = try runScript([
-            "insert 1 user1 person1@example.com",
-            "insert 1 user1 person1@example.com",
+            "INSERT INTO users VALUES (1, 'user1', 'person1@example.com')",
+            "INSERT INTO users VALUES (1, 'user1', 'person1@example.com')",
             ".exit",
         ], dbFile: db)
         #expect(result == [
-            "db > Executed.",
-            "db > Error: Duplicate key.",
-            "db > ",
+            "Error: Duplicate key.",
         ])
     }
 
@@ -232,10 +210,10 @@ struct REPLIntegrationTests {
         // 21 rows: root split at row 14, then non-root split at row 21 → internal (size 2), 3 leaves
         let db = makeTempDBPath()
         defer { try? FileManager.default.removeItem(atPath: db) }
-        let inserts = (1 ... 21).map { "insert \($0) user\($0) person\($0)@example.com" }
+        let inserts = (1 ... 21).map { "INSERT INTO users VALUES (\($0), 'user\($0)', 'person\($0)@example.com')" }
         let result = try runScript(inserts + [".btree", ".exit"], dbFile: db)
-        #expect(Array(result.dropFirst(21)) == [
-            "db > Tree:",
+        #expect(result == [
+            "Tree:",
             "- internal (size 2)",
             "  - leaf (size 7)",
             "    - 1", "    - 2", "    - 3", "    - 4", "    - 5", "    - 6", "    - 7",
@@ -245,16 +223,15 @@ struct REPLIntegrationTests {
             "  - key 14",
             "  - leaf (size 7)",
             "    - 15", "    - 16", "    - 17", "    - 18", "    - 19", "    - 20", "    - 21",
-            "db > ",
         ])
     }
 
     @Test func `prints error message when table is full`() throws {
         let db = makeTempDBPath()
         defer { try? FileManager.default.removeItem(atPath: db) }
-        let inserts = (1 ... 1500).map { "insert \($0) user\($0) person\($0)@example.com" }
+        let inserts = (1 ... 1500).map { "INSERT INTO users VALUES (\($0), 'user\($0)', 'person\($0)@example.com')" }
         let result = try runScript(inserts + [".exit"], dbFile: db)
-        #expect(result.contains("db > Error: Table full."))
+        #expect(result.contains("Error: Table full."))
     }
 
     @Test func `persists data across sessions`() throws {
@@ -263,18 +240,16 @@ struct REPLIntegrationTests {
 
         // First session: insert rows
         _ = try runScript([
-            "insert 1 user1 person1@example.com",
-            "insert 2 user2 person2@example.com",
+            "INSERT INTO users VALUES (1, 'user1', 'person1@example.com')",
+            "INSERT INTO users VALUES (2, 'user2', 'person2@example.com')",
             ".exit",
         ], dbFile: db)
 
         // Second session: data should still be there
-        let result = try runScript(["select", ".exit"], dbFile: db)
+        let result = try runScript(["SELECT * FROM users", ".exit"], dbFile: db)
         #expect(result == [
-            "db > (1, user1, person1@example.com)",
+            "(1, user1, person1@example.com)",
             "(2, user2, person2@example.com)",
-            "Executed.",
-            "db > ",
         ])
     }
 }

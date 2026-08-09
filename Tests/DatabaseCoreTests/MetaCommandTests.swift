@@ -34,7 +34,7 @@ struct MetaCommandTests {
     }
 
     @Test func `non meta command returns nil`() {
-        #expect(MetaCommand("select") == nil)
+        #expect(MetaCommand("SELECT * FROM users") == nil)
     }
 
     @Test func `exit command returns true from execute`() throws {
