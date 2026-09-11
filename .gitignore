@@ -4,3 +4,4 @@
 *.d
 *.local.md
 test.db
+.vscode
